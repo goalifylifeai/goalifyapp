@@ -19,7 +19,7 @@ module.exports = {
     },
     ios: {
       supportsTablet: false,
-      bundleIdentifier: 'com.goalify.app',
+      bundleIdentifier: 'com.goalifylife.app',
       usesAppleSignIn: true,
       infoPlist: {
         NSCalendarsUsageDescription: 'Goalify adds your habits as recurring events so you can see them in your calendar.',
@@ -32,7 +32,7 @@ module.exports = {
         backgroundColor: '#F4EFE6',
       },
       edgeToEdgeEnabled: true,
-      package: 'com.goalify.app',
+      package: 'com.goalifylife.app',
       permissions: ['android.permission.READ_CALENDAR', 'android.permission.WRITE_CALENDAR'],
     },
     web: {
