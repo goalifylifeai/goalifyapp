@@ -6,6 +6,7 @@ module.exports = {
   expo: {
     name: 'Goalify',
     slug: 'goalify',
+    owner: 'goalifyais-organization',
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
@@ -59,6 +60,9 @@ module.exports = {
       googleOAuthIosClientId: process.env.GOOGLE_OAUTH_IOS_CLIENT_ID ?? '',
       googleOAuthAndroidClientId: process.env.GOOGLE_OAUTH_ANDROID_CLIENT_ID ?? '',
       googleOAuthWebClientId: process.env.GOOGLE_OAUTH_WEB_CLIENT_ID ?? '',
+      eas: {
+        projectId: '688a053f-42b8-4e44-b220-7aa3c03b15ba',
+      },
     },
   },
 };

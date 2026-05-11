@@ -10,7 +10,8 @@ import {
 } from '@expo-google-fonts/jetbrains-mono';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, type ReactNode } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
+import { Analytics } from '@vercel/analytics/react';
 import * as Notifications from 'expo-notifications';
 import { COLORS } from '../constants/theme';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -100,6 +101,7 @@ export default function RootLayout() {
               <DailyRitualProvider>
               <VisionAssetsProvider>
                 <AuthGate>
+                  {Platform.OS === 'web' && <Analytics />}
                   <NotificationListener />
                   <RitualScheduler />
                   <Stack

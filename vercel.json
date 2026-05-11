@@ -1,6 +1,6 @@
 {
-  "outputDirectory": "public",
-  "buildCommand": null,
+  "outputDirectory": "dist",
+  "buildCommand": "npx expo export --platform web",
   "cleanUrls": true,
   "trailingSlash": false
 }
