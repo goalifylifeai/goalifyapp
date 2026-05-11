@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { DailyIntention } from '../store/daily-ritual';
+import { getNotificationTimes } from './notification-prefs';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -31,6 +32,7 @@ async function cancelNotification(id: string) {
 }
 
 export async function scheduleMorningNotification() {
+  const { morningHour, morningMinute } = await getNotificationTimes();
   await cancelNotification(IDS.morning);
   await Notifications.scheduleNotificationAsync({
     identifier: IDS.morning,
@@ -41,8 +43,8 @@ export async function scheduleMorningNotification() {
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-      hour: 6,
-      minute: 0,
+      hour: morningHour,
+      minute: morningMinute,
       repeats: true,
     },
   });
@@ -67,6 +69,7 @@ export async function scheduleLunchNudge() {
 }
 
 export async function scheduleEveningClose() {
+  const { eveningHour, eveningMinute } = await getNotificationTimes();
   await cancelNotification(IDS.evening);
   await Notifications.scheduleNotificationAsync({
     identifier: IDS.evening,
@@ -77,8 +80,8 @@ export async function scheduleEveningClose() {
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-      hour: 21,
-      minute: 30,
+      hour: eveningHour,
+      minute: eveningMinute,
       repeats: true,
     },
   });

@@ -21,6 +21,10 @@ module.exports = {
       supportsTablet: false,
       bundleIdentifier: 'com.goalify.app',
       usesAppleSignIn: true,
+      infoPlist: {
+        NSCalendarsUsageDescription: 'Goalify adds your habits as recurring events so you can see them in your calendar.',
+        NSCalendarsWriteOnlyAccessUsageDescription: 'Goalify adds your habits as recurring events so you can see them in your calendar.',
+      },
     },
     android: {
       adaptiveIcon: {
@@ -29,6 +33,7 @@ module.exports = {
       },
       edgeToEdgeEnabled: true,
       package: 'com.goalify.app',
+      permissions: ['android.permission.READ_CALENDAR', 'android.permission.WRITE_CALENDAR'],
     },
     web: {
       bundler: 'metro',
@@ -41,6 +46,7 @@ module.exports = {
       'expo-secure-store',
       'expo-web-browser',
       'expo-apple-authentication',
+      'expo-calendar',
       ['expo-notifications', {
         icon: './assets/icon.png',
         color: '#1F1B17',

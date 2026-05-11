@@ -89,6 +89,11 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
       break;
     }
 
+    case 'SET_HABIT_CALENDAR_ID': {
+      await supabase.from('habits').update({ calendar_event_id: action.calendarEventId }).eq('id', action.id).eq('user_id', userId);
+      break;
+    }
+
     case 'TOGGLE_HABIT': {
       const habit = state.habits.find(h => h.id === action.id);
       if (!habit) return;
@@ -115,6 +120,9 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
     case 'ADD_ACTION':
     case 'SEND_COACH_MESSAGE':
     case 'HYDRATE':
+      break;
+
+    default:
       break;
   }
 }
@@ -152,6 +160,16 @@ function actionToQueueItem(action: AppAction, state: AppState, userId: string): 
         table: 'habits',
         operation: 'upsert',
         payload: { id: h.id, user_id: userId, label: h.label, icon: h.icon, sphere: h.sphere, target_description: h.target },
+        created_at: new Date().toISOString(),
+        retries: 0,
+      };
+    }
+    case 'SET_HABIT_CALENDAR_ID': {
+      return {
+        id: `habit_cal:${action.id}`,
+        table: 'habits',
+        operation: 'upsert',
+        payload: { id: action.id, user_id: userId, calendar_event_id: action.calendarEventId },
         created_at: new Date().toISOString(),
         retries: 0,
       };

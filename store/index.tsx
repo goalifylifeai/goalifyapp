@@ -15,6 +15,7 @@ export type Goal = {
 
 export type HabitItem = {
   id: string; label: string; icon: string; sphere: SphereId; streak: number; target: string; doneToday: boolean;
+  calendarEventId?: string;
 };
 
 export type JournalEntry = {
@@ -42,6 +43,7 @@ export type AppAction =
   | { type: 'ADD_SUBTASK'; goalId: string; subtask: Subtask }
   | { type: 'TOGGLE_HABIT'; id: string }
   | { type: 'ADD_HABIT'; habit: HabitItem }
+  | { type: 'SET_HABIT_CALENDAR_ID'; id: string; calendarEventId: string }
   | { type: 'ADD_JOURNAL'; entry: JournalEntry }
   | { type: 'SEND_COACH_MESSAGE'; text: string }
   | { type: 'HYDRATE'; state: Partial<AppState> };
@@ -90,6 +92,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'ADD_HABIT':
       return { ...state, habits: [...state.habits, action.habit] };
+
+    case 'SET_HABIT_CALENDAR_ID':
+      return {
+        ...state,
+        habits: state.habits.map(h =>
+          h.id === action.id ? { ...h, calendarEventId: action.calendarEventId } : h,
+        ),
+      };
 
     case 'ADD_JOURNAL':
       return { ...state, journal: [action.entry, ...state.journal] };

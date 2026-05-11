@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, TextInput } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import { SPHERE_LIST, HEATMAP } from '../../constants/data';
 import { SectionLabel, Card, Heatmap, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
 import type { SphereId } from '../../constants/theme';
+import { exportHabitToCalendar } from '../../lib/calendar';
+
+const CALENDAR_SYNC_KEY = '@goalify/calendar_sync';
 
 const ICONS = ['◐', '△', '▭', '◇', '○', '◔', '◯', '⌬'];
 
@@ -20,25 +24,30 @@ export default function HabitsScreen() {
 
   const toggle = (id: string) => dispatch({ type: 'TOGGLE_HABIT', id });
 
-  const saveHabit = () => {
+  const saveHabit = async () => {
     const label = newLabel.trim();
     if (!label) return;
-    dispatch({
-      type: 'ADD_HABIT',
-      habit: {
-        id: `h-${Date.now()}`,
-        label,
-        icon: newIcon,
-        sphere: newSphere,
-        streak: 0,
-        target: newTarget.trim() || '1 session',
-        doneToday: false,
-      },
-    });
+    const habit = {
+      id: `h-${Date.now()}`,
+      label,
+      icon: newIcon,
+      sphere: newSphere,
+      streak: 0,
+      target: newTarget.trim() || '1 session',
+      doneToday: false,
+    };
+    dispatch({ type: 'ADD_HABIT', habit });
     setNewLabel('');
     setNewTarget('');
     setNewIcon('○');
     setAdding(false);
+
+    const syncEnabled = await AsyncStorage.getItem(CALENDAR_SYNC_KEY);
+    if (syncEnabled === '1') {
+      exportHabitToCalendar(habit).then(eventId => {
+        dispatch({ type: 'SET_HABIT_CALENDAR_ID', id: habit.id, calendarEventId: eventId });
+      }).catch(() => {});
+    }
   };
 
   const cancelAdd = () => { setNewLabel(''); setNewTarget(''); setAdding(false); };

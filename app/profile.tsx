@@ -1,25 +1,92 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { ScrollView, View, Text, TextInput, TouchableOpacity, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS } from '../constants/theme';
 import { BADGES, levelFromXp } from '../constants/data';
 import { Card, SectionLabel, Bar, Pill, F } from '../components/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../store/auth';
 import { useProfile } from '../store/profile';
+import { useStore } from '../store';
+import { syncHabitsToCalendar, removeAllHabitsFromCalendar } from '../lib/calendar';
+import { getNotificationTimes, saveNotificationTimes, DEFAULT_NOTIFICATION_TIMES } from '../lib/notification-prefs';
+import { scheduleMorningNotification, scheduleEveningClose } from '../lib/notifications';
+
+const CALENDAR_SYNC_KEY = '@goalify/calendar_sync';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
   const { profile, update, deleteAccount } = useProfile();
+  const { state, dispatch } = useStore();
 
   const lvl = levelFromXp(0);
   const earned: typeof BADGES = [];
   const [name, setName] = useState(profile?.display_name ?? '');
   const [pronoun, setPronoun] = useState(profile?.pronouns ?? '');
   const [genderAware, setGenderAware] = useState(profile?.gender_aware_coaching ?? true);
+  const [calendarSync, setCalendarSync] = useState(false);
+  const [calendarSyncing, setCalendarSyncing] = useState(false);
   const [tab, setTab] = useState<'details' | 'badges'>('details');
+
+  const toDate = (h: number, m: number) => { const d = new Date(); d.setHours(h, m, 0, 0); return d; };
+  const [morningTime, setMorningTime] = useState(() => toDate(DEFAULT_NOTIFICATION_TIMES.morningHour, DEFAULT_NOTIFICATION_TIMES.morningMinute));
+  const [eveningTime, setEveningTime] = useState(() => toDate(DEFAULT_NOTIFICATION_TIMES.eveningHour, DEFAULT_NOTIFICATION_TIMES.eveningMinute));
+  const [showMorningPicker, setShowMorningPicker] = useState(false);
+  const [showEveningPicker, setShowEveningPicker] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(CALENDAR_SYNC_KEY).then(v => setCalendarSync(v === '1'));
+    getNotificationTimes().then(t => {
+      setMorningTime(toDate(t.morningHour, t.morningMinute));
+      setEveningTime(toDate(t.eveningHour, t.eveningMinute));
+    });
+  }, []);
+
+  const fmt = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const onMorningChange = (_: unknown, date?: Date) => {
+    if (Platform.OS === 'android') setShowMorningPicker(false);
+    if (!date) return;
+    setMorningTime(date);
+    saveNotificationTimes({ morningHour: date.getHours(), morningMinute: date.getMinutes() })
+      .then(() => scheduleMorningNotification())
+      .catch(() => {});
+  };
+
+  const onEveningChange = (_: unknown, date?: Date) => {
+    if (Platform.OS === 'android') setShowEveningPicker(false);
+    if (!date) return;
+    setEveningTime(date);
+    saveNotificationTimes({ eveningHour: date.getHours(), eveningMinute: date.getMinutes() })
+      .then(() => scheduleEveningClose())
+      .catch(() => {});
+  };
+
+  const toggleCalendarSync = async () => {
+    if (calendarSyncing) return;
+    const next = !calendarSync;
+    setCalendarSyncing(true);
+    try {
+      if (next) {
+        await syncHabitsToCalendar(state.habits, (habitId, eventId) => {
+          dispatch({ type: 'SET_HABIT_CALENDAR_ID', id: habitId, calendarEventId: eventId });
+        });
+      } else {
+        await removeAllHabitsFromCalendar(state.habits);
+      }
+      setCalendarSync(next);
+      await AsyncStorage.setItem(CALENDAR_SYNC_KEY, next ? '1' : '0');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      Alert.alert('Calendar sync failed', msg);
+    } finally {
+      setCalendarSyncing(false);
+    }
+  };
 
   useEffect(() => {
     if (!profile) return;
@@ -158,12 +225,57 @@ export default function ProfileScreen() {
             </Card>
           </View>
 
+          <SectionLabel>Reminders</SectionLabel>
+          <View style={{ paddingHorizontal: 22 }}>
+            <Card pad={4}>
+              {/* Morning */}
+              <TouchableOpacity
+                onPress={() => setShowMorningPicker(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: COLORS.ink7 }}
+              >
+                <View>
+                  <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, fontWeight: '500' }}>Morning ritual</Text>
+                  <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 2 }}>Pick today's One</Text>
+                </View>
+                <Text style={{ fontFamily: F.mono, fontSize: 13, color: COLORS.ink2 }}>{fmt(morningTime)}</Text>
+              </TouchableOpacity>
+              {showMorningPicker && (
+                <DateTimePicker
+                  value={morningTime}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={onMorningChange}
+                />
+              )}
+
+              {/* Evening */}
+              <TouchableOpacity
+                onPress={() => setShowEveningPicker(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14 }}
+              >
+                <View>
+                  <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, fontWeight: '500' }}>Evening close</Text>
+                  <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 2 }}>Close the day</Text>
+                </View>
+                <Text style={{ fontFamily: F.mono, fontSize: 13, color: COLORS.ink2 }}>{fmt(eveningTime)}</Text>
+              </TouchableOpacity>
+              {showEveningPicker && (
+                <DateTimePicker
+                  value={eveningTime}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={onEveningChange}
+                />
+              )}
+            </Card>
+          </View>
+
           <SectionLabel>App</SectionLabel>
           <View style={{ paddingHorizontal: 22 }}>
             <Card pad={4}>
               <TouchableOpacity
                 onPress={() => router.push('/tour')}
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14 }}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: COLORS.ink7 }}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, fontWeight: '500' }}>How Goalify works</Text>
@@ -171,6 +283,26 @@ export default function ProfileScreen() {
                 </View>
                 <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3 }}>→</Text>
               </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 14 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, fontWeight: '500' }}>
+                    {calendarSyncing ? 'Syncing…' : 'Sync habits to Calendar'}
+                  </Text>
+                  <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 4, lineHeight: 17 }}>
+                    Adds each habit as a daily recurring event in your device calendar.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={toggleCalendarSync}
+                  disabled={calendarSyncing}
+                  style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: calendarSync ? COLORS.ink1 : COLORS.ink6, position: 'relative', flexShrink: 0, opacity: calendarSyncing ? 0.5 : 1 }}
+                >
+                  <View style={{
+                    position: 'absolute', top: 3, left: calendarSync ? 21 : 3,
+                    width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff',
+                  }} />
+                </TouchableOpacity>
+              </View>
             </Card>
           </View>
 
