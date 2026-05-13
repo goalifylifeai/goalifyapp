@@ -48,3 +48,6 @@ supabase/.temp
 
 # OAuth client secrets
 client_secret_*.json
+
+# Brand source assets (exported copies live in assets/)
+brand/
