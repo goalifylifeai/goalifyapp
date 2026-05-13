@@ -26,7 +26,6 @@ function formatNextHour() {
 }
 
 export default function TodayScreen() {
-  const lvl = levelFromXp(0);
   const { profile } = useProfile();
   const { state, dispatch } = useStore();
   const { originalLetter } = useFutureSelf();
@@ -44,6 +43,28 @@ export default function TodayScreen() {
     })),
     ...freeActions.map(a => ({ ...a, _isMustDo: false, _isRitual: false as const })),
   ];
+
+  // Sphere calculations
+  const sphereData = SPHERE_LIST.reduce((acc, id) => {
+    const goals = state.goals.filter(g => g.sphere === id);
+    const avgProgress = goals.length > 0 
+      ? goals.reduce((sum, g) => sum + g.progress, 0) / goals.length 
+      : 0;
+    acc[id] = { count: goals.length, progress: avgProgress };
+    return acc;
+  }, {} as Record<SphereId, { count: number; progress: number }>);
+
+  const overall = Math.round(
+    Object.values(sphereData).reduce((sum, d) => sum + d.progress, 0) / SPHERE_LIST.length * 100
+  );
+
+  const lvl = levelFromXp(overall * 50); // Arbitrary XP calculation based on progress
+  
+  const sortedSpheres = [...SPHERE_LIST].sort((a, b) => sphereData[b].progress - sphereData[a].progress);
+  const top = sortedSpheres[0];
+  const low = sortedSpheres[sortedSpheres.length - 1];
+  
+  const band = overall >= 80 ? 'Thriving' : overall >= 65 ? 'Steady' : overall >= 50 ? 'Building' : 'Tending';
 
   const [addingAction, setAddingAction] = useState(false);
   const [newText, setNewText] = useState('');
@@ -80,7 +101,7 @@ export default function TodayScreen() {
     dispatch({
       type: 'ADD_ACTION',
       action: {
-        id: `t-${Date.now()}`,
+        id: crypto.randomUUID(),
         t: trimmed,
         sphere: newSphere,
         time: formatNextHour(),
@@ -95,11 +116,6 @@ export default function TodayScreen() {
   const cancelAdd = () => { setNewText(''); setAddingAction(false); };
 
   const doneCt = actions.filter(a => a.done).length;
-
-  const overall = 0;
-  const top: SphereId = 'career';
-  const low: SphereId = 'health';
-  const band = overall >= 80 ? 'Thriving' : overall >= 65 ? 'Steady' : overall >= 50 ? 'Building' : 'Tending';
 
   const nudgeQuote = originalLetter
     ? originalLetter.body.split(/[.!?]/)[0].trim().slice(0, 80)
@@ -151,6 +167,7 @@ export default function TodayScreen() {
       {/* Overall life score */}
       <SectionLabel>Overall life score</SectionLabel>
       <View style={{ paddingHorizontal: 22 }}>
+        <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/score-info' as any)}>
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
           <Ring value={overall / 100} size={86} stroke={5}>
             <View style={{ alignItems: 'center' }}>
@@ -160,7 +177,7 @@ export default function TodayScreen() {
           </Ring>
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: COLORS.ink3 }}>
-              This week · <Text style={{ color: SPHERE_COLORS.finance.accent }}>+4</Text>
+              Trending · <Text style={{ color: SPHERE_COLORS.finance.accent }}>+4</Text>
             </Text>
             <Text style={{ fontFamily: F.displayItalic, fontSize: 24, color: COLORS.ink2, lineHeight: 28, marginTop: 4, letterSpacing: -0.4 }}>
               {band}.
@@ -178,6 +195,7 @@ export default function TodayScreen() {
             </View>
           </View>
         </Card>
+        </TouchableOpacity>
       </View>
 
       {/* Sphere balance */}
@@ -185,51 +203,66 @@ export default function TodayScreen() {
       <View style={{ paddingHorizontal: 22, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {SPHERE_LIST.map(id => {
           const s = SPHERE_COLORS[id];
+          const data = sphereData[id];
           return (
-            <Card key={id} pad={14} style={{ width: '47%' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <SphereChip sphere={id} size={26} />
-                <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3 }}>0/100</Text>
-              </View>
-              <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink2, marginTop: 10, fontWeight: '500' }}>{s.label}</Text>
-              <Bar value={0} color={s.accent} style={{ marginTop: 6 }} />
-            </Card>
+            <TouchableOpacity
+              key={id}
+              activeOpacity={0.75}
+              onPress={() => router.push({ pathname: '/(tabs)/goals', params: { sphere: id } })}
+              style={{ width: '47%' }}
+            >
+              <Card pad={14}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <SphereChip sphere={id} size={26} />
+                  <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3 }}>
+                    {data.count} {data.count === 1 ? 'goal' : 'goals'}
+                  </Text>
+                </View>
+                <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink2, marginTop: 10, fontWeight: '500' }}>{s.label}</Text>
+                <Bar value={data.progress} color={s.accent} style={{ marginTop: 6 }} />
+              </Card>
+            </TouchableOpacity>
           );
         })}
       </View>
 
+
       {/* Level + streak */}
       <View style={{ paddingHorizontal: 22, paddingTop: 22, flexDirection: 'row', gap: 10 }}>
-        <Card pad={16} style={{ flex: 1, backgroundColor: COLORS.ink1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Ring value={lvl.pct} size={42} stroke={3} color={COLORS.paper} track="rgba(255,255,255,0.18)">
-              <Text style={{ color: COLORS.paper, fontFamily: F.mono, fontSize: 12 }}>{lvl.lvl.n}</Text>
-            </Ring>
-            <View>
-              <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>Level {lvl.lvl.n}</Text>
-              <Text style={{ fontFamily: F.display, fontSize: 20, color: COLORS.paper, lineHeight: 24, marginTop: 2 }}>{lvl.lvl.name}</Text>
+        <TouchableOpacity activeOpacity={0.85} style={{ flex: 1 }} onPress={() => router.push('/level-info' as any)}>
+          <Card pad={16} style={{ flex: 1, backgroundColor: COLORS.ink1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ring value={lvl.pct} size={42} stroke={3} color={COLORS.paper} track="rgba(255,255,255,0.18)">
+                <Text style={{ color: COLORS.paper, fontFamily: F.mono, fontSize: 12 }}>{lvl.lvl.n}</Text>
+              </Ring>
+              <View>
+                <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>Level {lvl.lvl.n}</Text>
+                <Text style={{ fontFamily: F.display, fontSize: 20, color: COLORS.paper, lineHeight: 24, marginTop: 2 }}>{lvl.lvl.name}</Text>
+              </View>
             </View>
-          </View>
-          <Text style={{ fontFamily: F.mono, fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 10, letterSpacing: 0.5 }}>
-            {lvl.into.toLocaleString()} / {lvl.next.min.toLocaleString()} XP
-          </Text>
-        </Card>
-        <Card pad={16} style={{ flex: 1 }}>
-          <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: COLORS.ink3 }}>Streak</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 8 }}>
-            <Text style={{ fontFamily: F.display, fontSize: 44, color: COLORS.ink1, lineHeight: 48 }}>0</Text>
-            <Text style={{ fontFamily: F.mono, fontSize: 13, color: COLORS.ink3, marginLeft: 4 }}>days</Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 3, marginTop: 10 }}>
-            {Array.from({ length: 14 }).map((_, i) => (
-              <View key={i} style={{
-                flex: 1, height: 10, borderRadius: 2,
-                backgroundColor: COLORS.ink1,
-                opacity: i < 13 ? 0.4 + (i / 13) * 0.6 : 0.12,
-              }} />
-            ))}
-          </View>
-        </Card>
+            <Text style={{ fontFamily: F.mono, fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 10, letterSpacing: 0.5 }}>
+              {lvl.into.toLocaleString()} / {lvl.next.min.toLocaleString()} XP
+            </Text>
+          </Card>
+        </TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.85} style={{ flex: 1 }} onPress={() => router.push('/streak-info' as any)}>
+          <Card pad={16} style={{ flex: 1 }}>
+            <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: COLORS.ink3 }}>Streak</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 8 }}>
+              <Text style={{ fontFamily: F.display, fontSize: 44, color: COLORS.ink1, lineHeight: 48 }}>0</Text>
+              <Text style={{ fontFamily: F.mono, fontSize: 13, color: COLORS.ink3, marginLeft: 4 }}>days</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 3, marginTop: 10 }}>
+              {Array.from({ length: 14 }).map((_, i) => (
+                <View key={i} style={{
+                  flex: 1, height: 10, borderRadius: 2,
+                  backgroundColor: COLORS.ink1,
+                  opacity: i < 13 ? 0.4 + (i / 13) * 0.6 : 0.12,
+                }} />
+              ))}
+            </View>
+          </Card>
+        </TouchableOpacity>
       </View>
 
       {/* Affirmations per goal */}
@@ -327,14 +360,14 @@ export default function TodayScreen() {
           {/* Inline add-action form */}
           {addingAction && (
             <View style={{ padding: 14, borderTopWidth: actions.length > 0 ? 0.5 : 0, borderTopColor: COLORS.ink7 }}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                 {SPHERE_LIST.map(id => (
                   <Pill key={id} active={newSphere === id} onPress={() => setNewSphere(id)}>
                     <Text style={{ color: newSphere === id ? COLORS.paper : SPHERE_COLORS[id].deep }}>{SPHERE_COLORS[id].glyph} </Text>
                     {SPHERE_COLORS[id].label}
                   </Pill>
                 ))}
-              </ScrollView>
+              </View>
               <TextInput
                 autoFocus
                 value={newText}

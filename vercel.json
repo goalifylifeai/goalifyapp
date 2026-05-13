@@ -2,5 +2,6 @@
   "outputDirectory": "dist",
   "buildCommand": "npx expo export --platform web",
   "cleanUrls": true,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

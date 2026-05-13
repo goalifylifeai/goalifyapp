@@ -113,6 +113,9 @@ export default function RootLayout() {
                     <Stack.Screen name="(tabs)" />
                     <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
                     <Stack.Screen name="tour" options={{ presentation: 'modal', gestureEnabled: true }} />
+                    <Stack.Screen name="score-info" options={{ presentation: 'modal', gestureEnabled: true }} />
+                    <Stack.Screen name="level-info" options={{ presentation: 'modal', gestureEnabled: true }} />
+                    <Stack.Screen name="streak-info" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="ritual" />
                     <Stack.Screen name="vision" />
                   </Stack>

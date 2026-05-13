@@ -52,30 +52,51 @@ async function writeCache(state: AppState): Promise<void> {
 async function syncAction(action: AppAction, state: AppState, userId: string): Promise<void> {
   switch (action.type) {
     case 'ADD_GOAL':
+    case 'UPDATE_GOAL':
+    case 'REMOVE_GOAL':
     case 'TOGGLE_SUBTASK':
     case 'ADD_SUBTASK': {
-      if (action.type === 'ADD_GOAL') {
-        const g = action.goal;
+      if (action.type === 'REMOVE_GOAL') {
+        await supabase.from('goal_subtasks').delete().eq('goal_id', action.goalId);
+        await supabase.from('goals').delete().eq('id', action.goalId);
+        break;
+      }
+
+      if (action.type === 'ADD_GOAL' || action.type === 'UPDATE_GOAL') {
+        const goalId = action.type === 'ADD_GOAL' ? action.goal.id : action.goalId;
+        const goal = action.type === 'ADD_GOAL' ? action.goal : state.goals.find(g => g.id === goalId);
+        if (!goal) return;
+
         await supabase.from('goals').upsert(
-          { id: g.id, user_id: userId, sphere: g.sphere, title: g.title, due_date: g.due || null },
+          { id: goal.id, user_id: userId, sphere: goal.sphere, title: goal.title, due_date: goal.due || null },
           { onConflict: 'id' },
         );
+        
+        // Sync subtasks
+        const subtasks = goal.sub.map((s, i) => ({
+          id: s.id,
+          goal_id: goal.id,
+          user_id: userId,
+          text: s.t,
+          done: s.done,
+          sort_order: i,
+        }));
+        
+        await supabase.from('goal_subtasks').upsert(subtasks, { onConflict: 'id' });
       } else {
         // Sync all subtasks for the affected goal
         const goalId = action.goalId;
         const goal = state.goals.find(g => g.id === goalId);
         if (!goal) return;
         const subtasks = goal.sub.map((s, i) => ({
-          id: `${goalId}:${i}`,
+          id: s.id,
           goal_id: goalId,
           user_id: userId,
           text: s.t,
           done: s.done,
           sort_order: i,
         }));
-        for (const st of subtasks) {
-          await supabase.from('goal_subtasks').upsert(st, { onConflict: 'id' });
-        }
+        await supabase.from('goal_subtasks').upsert(subtasks, { onConflict: 'id' });
       }
       break;
     }
@@ -127,67 +148,135 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
   }
 }
 
-function actionToQueueItem(action: AppAction, state: AppState, userId: string): QueueItem | null {
+function actionToQueueItems(action: AppAction, state: AppState, userId: string): QueueItem[] {
+  const items: QueueItem[] = [];
+  const now = new Date().toISOString();
+
   switch (action.type) {
-    case 'ADD_GOAL': {
-      const g = action.goal;
-      return {
+    case 'ADD_GOAL':
+    case 'UPDATE_GOAL': {
+      const goalId = action.type === 'ADD_GOAL' ? action.goal.id : action.goalId;
+      const g = action.type === 'ADD_GOAL' ? action.goal : state.goals.find(x => x.id === goalId);
+      if (!g) return [];
+
+      items.push({
         id: `goal:${g.id}`,
         table: 'goals',
         operation: 'upsert',
         payload: { id: g.id, user_id: userId, sphere: g.sphere, title: g.title, due_date: g.due || null },
-        created_at: new Date().toISOString(),
+        created_at: now,
         retries: 0,
-      };
+      });
+      if (g.sub.length > 0) {
+        g.sub.forEach((s, i) => {
+          items.push({
+            id: `subtask:${s.id}`,
+            table: 'goal_subtasks',
+            operation: 'upsert',
+            payload: {
+              id: s.id,
+              goal_id: g.id,
+              user_id: userId,
+              text: s.t,
+              done: s.done,
+              sort_order: i,
+            },
+            created_at: now,
+            retries: 0,
+          });
+        });
+      }
+      break;
+    }
+    case 'REMOVE_GOAL': {
+      items.push({
+        id: `goal_del:${action.goalId}`,
+        table: 'goals',
+        operation: 'delete',
+        payload: { id: action.goalId },
+        created_at: now,
+        retries: 0,
+      });
+      break;
+    }
+    case 'TOGGLE_SUBTASK':
+    case 'ADD_SUBTASK': {
+      const goalId = action.goalId;
+      const goal = state.goals.find(g => g.id === goalId);
+      if (goal) {
+        goal.sub.forEach((s, i) => {
+          items.push({
+            id: `subtask:${s.id}`,
+            table: 'goal_subtasks',
+            operation: 'upsert',
+            payload: {
+              id: s.id,
+              goal_id: goalId,
+              user_id: userId,
+              text: s.t,
+              done: s.done,
+              sort_order: i,
+            },
+            created_at: now,
+            retries: 0,
+          });
+        });
+      }
+      break;
     }
     case 'TOGGLE_HABIT': {
       const habit = state.habits.find(h => h.id === action.id);
-      if (!habit) return null;
+      if (!habit) return [];
       const today = new Date().toISOString().slice(0, 10);
-      return {
+      items.push({
         id: `habit_log:${action.id}:${today}`,
         table: 'habit_logs',
         operation: 'upsert',
         payload: { id: `${action.id}:${today}`, habit_id: action.id, user_id: userId, date: today, done: habit.doneToday },
-        created_at: new Date().toISOString(),
+        created_at: now,
         retries: 0,
-      };
+      });
+      break;
     }
     case 'ADD_HABIT': {
       const h = action.habit;
-      return {
+      items.push({
         id: `habit:${h.id}`,
         table: 'habits',
         operation: 'upsert',
         payload: { id: h.id, user_id: userId, label: h.label, icon: h.icon, sphere: h.sphere, target_description: h.target },
-        created_at: new Date().toISOString(),
+        created_at: now,
         retries: 0,
-      };
+      });
+      break;
     }
     case 'SET_HABIT_CALENDAR_ID': {
-      return {
+      items.push({
         id: `habit_cal:${action.id}`,
         table: 'habits',
         operation: 'upsert',
         payload: { id: action.id, user_id: userId, calendar_event_id: action.calendarEventId },
-        created_at: new Date().toISOString(),
+        created_at: now,
         retries: 0,
-      };
+      });
+      break;
     }
     case 'ADD_JOURNAL': {
       const e = action.entry;
-      return {
+      items.push({
         id: `journal:${e.id}`,
         table: 'journal_entries',
         operation: 'upsert',
         payload: { id: e.id, user_id: userId, date: e.date, sphere: e.sphere, sentiment: e.sentiment, excerpt: e.excerpt },
-        created_at: new Date().toISOString(),
+        created_at: now,
         retries: 0,
-      };
+      });
+      break;
     }
     default:
-      return null;
+      break;
   }
+  return items;
 }
 
 async function replayQueueItem(item: QueueItem): Promise<void> {
@@ -270,8 +359,8 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
       writeCache(nextState).catch(() => {});
 
       syncAction(action, nextState, userId).catch(() => {
-        const item = actionToQueueItem(action, nextState, userId);
-        if (item) enqueue(item).catch(() => {});
+        const items = actionToQueueItems(action, nextState, userId);
+        items.forEach(item => enqueue(item).catch(() => {}));
       });
     },
     [],

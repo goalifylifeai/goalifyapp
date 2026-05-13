@@ -55,7 +55,7 @@ export function proposeMorningActions(
     for (const sub of goal.sub) {
       if (!sub.done && pool.length < 2) {
         pool.push({
-          id: `sub-${goal.id}-${pool.length}`,
+          id: sub.id,
           text: sub.t,
           sphere,
           is_must_do: false,
@@ -70,7 +70,7 @@ export function proposeMorningActions(
   const sphereHabit = habits.find(h => h.sphere === sphere && !h.doneToday);
   if (sphereHabit && pool.length < 3) {
     pool.push({
-      id: `habit-${sphereHabit.id}`,
+      id: sphereHabit.id,
       text: sphereHabit.label,
       sphere,
       is_must_do: false,
@@ -84,7 +84,7 @@ export function proposeMorningActions(
   for (const text of fallbacks) {
     if (pool.length >= 3) break;
     pool.push({
-      id: `fallback-${Date.now()}-${pool.length}`,
+      id: crypto.randomUUID(),
       text,
       sphere,
       is_must_do: false,

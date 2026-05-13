@@ -171,28 +171,23 @@ export function SentimentChart({ data, w = 300, h = 108 }: SentimentChartProps) 
 }
 
 // ─── Heatmap ─────────────────────────────────────────────────────
+const HEATMAP_GREENS = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
+
 interface HeatmapProps {
   values: number[];
+  weeks: number;
 }
-export function Heatmap({ values }: HeatmapProps) {
-  const opacities = [0.06, 0.22, 0.5, 0.88];
-  const cells = [];
-  for (let col = 0; col < 12; col++) {
-    for (let row = 0; row < 7; row++) {
-      cells.push({ row, col, v: values[col * 7 + row] ?? 0 });
-    }
-  }
+export function Heatmap({ values, weeks }: HeatmapProps) {
   return (
     <View style={{ flexDirection: 'row', gap: 3 }}>
-      {Array.from({ length: 12 }, (_, col) => (
+      {Array.from({ length: weeks }, (_, col) => (
         <View key={col} style={{ flex: 1, gap: 3 }}>
           {Array.from({ length: 7 }, (_, row) => {
             const v = values[col * 7 + row] ?? 0;
             return (
               <View key={row} style={{
                 aspectRatio: 1, borderRadius: 3,
-                backgroundColor: COLORS.ink1,
-                opacity: opacities[v] ?? 0.06,
+                backgroundColor: HEATMAP_GREENS[v] ?? HEATMAP_GREENS[0],
               }} />
             );
           })}
@@ -213,7 +208,7 @@ export function Pill({ children, active, onPress, style }: PillProps) {
   return (
     <Pressable onPress={onPress} style={[{
       backgroundColor: active ? COLORS.ink1 : 'transparent',
-      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 99,
+      paddingHorizontal: 11, paddingVertical: 7, borderRadius: 99,
     }, style]}>
       <Text style={{
         fontFamily: undefined,

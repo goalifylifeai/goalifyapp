@@ -34,7 +34,7 @@ function toGoal(row: GoalRow, subtasks: GoalSubtaskRow[]): Goal {
   const sub = subtasks
     .filter(s => s.goal_id === row.id)
     .sort((a, b) => a.sort_order - b.sort_order)
-    .map(s => ({ t: s.text, done: s.done }));
+    .map(s => ({ id: s.id, t: s.text, done: s.done }));
   const progress = sub.length > 0 ? sub.filter(s => s.done).length / sub.length : 0;
   return {
     id: row.id,

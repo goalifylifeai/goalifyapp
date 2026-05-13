@@ -1,12 +1,28 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
-import { SPHERE_LIST, HEATMAP } from '../../constants/data';
+import { SPHERE_LIST } from '../../constants/data';
 import { SectionLabel, Card, Heatmap, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
 import type { SphereId } from '../../constants/theme';
 import { exportHabitToCalendar } from '../../lib/calendar';
+
+const TIMEFRAMES = [
+  { label: '4W', weeks: 4 },
+  { label: '8W', weeks: 8 },
+  { label: '12W', weeks: 12 },
+];
+
+function isoDate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function daysAgo(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+}
 
 const CALENDAR_SYNC_KEY = '@goalify/calendar_sync';
 
@@ -16,6 +32,7 @@ export default function HabitsScreen() {
   const { state, dispatch } = useStore();
   const habits = state.habits;
 
+  const [weeks, setWeeks] = useState(12);
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newSphere, setNewSphere] = useState<SphereId>('health');
@@ -23,6 +40,47 @@ export default function HabitsScreen() {
   const [newIcon, setNewIcon] = useState('○');
 
   const toggle = (id: string) => dispatch({ type: 'TOGGLE_HABIT', id });
+
+  const { heatmapValues, globalStreak, activeDays, completionPct } = useMemo(() => {
+    const totalDays = weeks * 7;
+    const heatmapValues: number[] = [];
+
+    let activeDays = 0;
+    let totalRatio = 0;
+
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const dateStr = isoDate(daysAgo(i));
+      if (habits.length === 0) {
+        heatmapValues.push(0);
+        continue;
+      }
+      const done = habits.filter(h => (h.history ?? []).includes(dateStr)).length;
+      const ratio = done / habits.length;
+      if (done > 0) activeDays++;
+      totalRatio += ratio;
+      heatmapValues.push(ratio === 0 ? 0 : ratio <= 0.25 ? 1 : ratio <= 0.5 ? 2 : ratio < 1 ? 3 : 4);
+    }
+
+    const completionPct = habits.length > 0 ? Math.round((totalRatio / totalDays) * 100) : 0;
+
+    // Global streak: consecutive days (ending today) where ≥1 habit done
+    let globalStreak = 0;
+    if (habits.length > 0) {
+      const cur = new Date();
+      const todayStr = isoDate(cur);
+      const anyDoneToday = habits.some(h => (h.history ?? []).includes(todayStr));
+      if (!anyDoneToday) cur.setDate(cur.getDate() - 1);
+      while (true) {
+        const dateStr = isoDate(cur);
+        const anyDone = habits.some(h => (h.history ?? []).includes(dateStr));
+        if (!anyDone) break;
+        globalStreak++;
+        cur.setDate(cur.getDate() - 1);
+      }
+    }
+
+    return { heatmapValues, globalStreak, activeDays, completionPct };
+  }, [habits, weeks]);
 
   const saveHabit = async () => {
     const label = newLabel.trim();
@@ -66,30 +124,55 @@ export default function HabitsScreen() {
       </View>
 
       {/* Heatmap */}
-      <SectionLabel action="12 weeks">Completion</SectionLabel>
+      <View style={{ paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 6 }}>
+        <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: COLORS.ink3 }}>Completion</Text>
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          {TIMEFRAMES.map(tf => (
+            <TouchableOpacity
+              key={tf.weeks}
+              onPress={() => setWeeks(tf.weeks)}
+              style={{
+                paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99,
+                backgroundColor: weeks === tf.weeks ? COLORS.ink1 : 'transparent',
+                borderWidth: 1, borderColor: weeks === tf.weeks ? COLORS.ink1 : COLORS.ink5,
+              }}
+            >
+              <Text style={{ fontFamily: F.mono, fontSize: 10, color: weeks === tf.weeks ? COLORS.paper : COLORS.ink3 }}>{tf.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
       <View style={{ paddingHorizontal: 22 }}>
         <Card pad={18}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
             <View>
-              <Text style={{ fontFamily: F.display, fontSize: 48, color: COLORS.ink1, lineHeight: 52, letterSpacing: -0.8 }}>47</Text>
+              <Text style={{ fontFamily: F.display, fontSize: 48, color: COLORS.ink1, lineHeight: 52, letterSpacing: -0.8 }}>
+                {habits.length === 0 ? '—' : globalStreak}
+              </Text>
               <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3, letterSpacing: 0.5, marginTop: 4 }}>day streak</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3, letterSpacing: 0.5 }}>72-day total</Text>
-              <Text style={{ fontFamily: F.display, fontSize: 26, color: COLORS.ink1, lineHeight: 30, marginTop: 6 }}>89%</Text>
+              <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3, letterSpacing: 0.5 }}>{activeDays}-day total</Text>
+              <Text style={{ fontFamily: F.display, fontSize: 26, color: COLORS.ink1, lineHeight: 30, marginTop: 6 }}>
+                {habits.length === 0 ? '—' : `${completionPct}%`}
+              </Text>
             </View>
           </View>
-          <Heatmap values={HEATMAP} />
+          <Heatmap values={heatmapValues} weeks={weeks} />
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
-            <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 0.5 }}>Feb</Text>
+            <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 0.5 }}>
+              {(() => { const d = daysAgo(weeks * 7 - 1); return d.toLocaleString('en', { month: 'short' }); })()}
+            </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>less</Text>
-              {[0.06, 0.22, 0.5, 0.88].map((o, i) => (
-                <View key={i} style={{ width: 9, height: 9, backgroundColor: COLORS.ink1, opacity: o, borderRadius: 2 }} />
+              {['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'].map((c, i) => (
+                <View key={i} style={{ width: 9, height: 9, backgroundColor: c, borderRadius: 2 }} />
               ))}
               <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>more</Text>
             </View>
-            <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 0.5 }}>May</Text>
+            <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 0.5 }}>
+              {new Date().toLocaleString('en', { month: 'short' })}
+            </Text>
           </View>
         </Card>
       </View>

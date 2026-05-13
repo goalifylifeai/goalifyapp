@@ -7,7 +7,7 @@ export type TodayAction = {
   id: string; t: string; sphere: SphereId; time: string; done: boolean; goal: string;
 };
 
-export type Subtask = { t: string; done: boolean };
+export type Subtask = { id: string; t: string; done: boolean };
 
 export type Goal = {
   id: string; sphere: SphereId; title: string; due: string; progress: number; sub: Subtask[];
@@ -15,8 +15,26 @@ export type Goal = {
 
 export type HabitItem = {
   id: string; label: string; icon: string; sphere: SphereId; streak: number; target: string; doneToday: boolean;
+  history?: string[]; // YYYY-MM-DD dates when completed
   calendarEventId?: string;
 };
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function calcStreak(history: string[]): number {
+  if (history.length === 0) return 0;
+  const set = new Set(history);
+  let streak = 0;
+  const cur = new Date();
+  if (!set.has(cur.toISOString().slice(0, 10))) cur.setDate(cur.getDate() - 1);
+  while (set.has(cur.toISOString().slice(0, 10))) {
+    streak++;
+    cur.setDate(cur.getDate() - 1);
+  }
+  return streak;
+}
 
 export type JournalEntry = {
   id: string; date: string; sphere: SphereId; sentiment: number; excerpt: string;
@@ -40,6 +58,8 @@ export type AppAction =
   | { type: 'ADD_ACTION'; action: TodayAction }
   | { type: 'TOGGLE_SUBTASK'; goalId: string; idx: number }
   | { type: 'ADD_GOAL'; goal: Goal }
+  | { type: 'UPDATE_GOAL'; goalId: string; patch: Partial<Goal> }
+  | { type: 'REMOVE_GOAL'; goalId: string }
   | { type: 'ADD_SUBTASK'; goalId: string; subtask: Subtask }
   | { type: 'TOGGLE_HABIT'; id: string }
   | { type: 'ADD_HABIT'; habit: HabitItem }
@@ -75,20 +95,49 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'ADD_GOAL':
       return { ...state, goals: [...state.goals, action.goal] };
 
+    case 'UPDATE_GOAL':
+      return {
+        ...state,
+        goals: state.goals.map(g => {
+          if (g.id !== action.goalId) return g;
+          const next = { ...g, ...action.patch };
+          // Recalculate progress if subtasks changed
+          if (action.patch.sub) {
+            next.progress = next.sub.filter(s => s.done).length / (next.sub.length || 1);
+          }
+          return next;
+        }),
+      };
+
+    case 'REMOVE_GOAL':
+      return {
+        ...state,
+        goals: state.goals.filter(g => g.id !== action.goalId),
+      };
+
     case 'ADD_SUBTASK': {
-      const goals = state.goals.map(g =>
-        g.id !== action.goalId ? g : { ...g, sub: [...g.sub, action.subtask] },
-      );
+      const goals = state.goals.map(g => {
+        if (g.id !== action.goalId) return g;
+        const sub = [...g.sub, action.subtask];
+        const progress = sub.filter(s => s.done).length / (sub.length || 1);
+        return { ...g, sub, progress };
+      });
       return { ...state, goals };
     }
 
-    case 'TOGGLE_HABIT':
+    case 'TOGGLE_HABIT': {
+      const today = todayISO();
       return {
         ...state,
-        habits: state.habits.map(h =>
-          h.id === action.id ? { ...h, doneToday: !h.doneToday } : h,
-        ),
+        habits: state.habits.map(h => {
+          if (h.id !== action.id) return h;
+          const history = h.history ?? [];
+          const wasDone = history.includes(today);
+          const newHistory = wasDone ? history.filter(d => d !== today) : [...history, today];
+          return { ...h, doneToday: !wasDone, history: newHistory, streak: calcStreak(newHistory) };
+        }),
       };
+    }
 
     case 'ADD_HABIT':
       return { ...state, habits: [...state.habits, action.habit] };
@@ -106,7 +155,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'SEND_COACH_MESSAGE': {
       const userMsg: ChatMessage = {
-        id: `msg-${Date.now()}`,
+        id: crypto.randomUUID(),
         role: 'user',
         text: action.text,
       };
@@ -118,7 +167,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         'Your data shows a correlation between long runs and high-sentiment days. What if this question is best answered after movement?',
       ];
       const coachMsg: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
+        id: crypto.randomUUID(),
         role: 'coach',
         text: replies[Math.floor(Math.random() * replies.length)],
       };

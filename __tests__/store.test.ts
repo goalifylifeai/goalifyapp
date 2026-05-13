@@ -20,10 +20,19 @@ jest.mock('../lib/bootstrap', () => ({ bootstrapUserData: jest.fn().mockResolved
 jest.mock('../lib/offline-queue', () => ({ enqueue: jest.fn(), drainQueue: jest.fn() }));
 
 import { appReducer, initialState, type AppAction, type AppState } from '../store';
+import { GOALS, HABITS, TODAY_ACTIONS, JOURNAL } from '../constants/data';
 
 // ── Helpers ───────────────────────────────────────────────────────
 function state(): AppState {
-  return JSON.parse(JSON.stringify(initialState));
+  const s: AppState = JSON.parse(JSON.stringify(initialState));
+  s.goals = GOALS.map(g => ({
+    ...g,
+    sub: g.sub.map((st, i) => ({ id: `st-${g.id}-${i}`, ...st }))
+  }));
+  s.habits = HABITS.map(h => ({ ...h, doneToday: false }));
+  s.todayActions = TODAY_ACTIONS;
+  s.journal = JOURNAL;
+  return s;
 }
 
 // ── TOGGLE_ACTION ─────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import type { SphereId } from '../../constants/theme';
 import { F } from '../../components/ui';
@@ -13,28 +14,49 @@ import { useOnboarding } from '../../store/onboarding';
 
 const SPHERES = Object.keys(SPHERE_COLORS) as SphereId[];
 
+function formatDueDate(date: Date) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[date.getMonth()]} ${date.getDate()}`;
+}
+
 export default function WelcomeAddGoal() {
   const insets = useSafeAreaInsets();
-  const { state: onboarding } = useOnboarding();
+  const { state: onboarding, advance } = useOnboarding();
   const { dispatch } = useStore();
 
   const [sphere, setSphere] = useState<SphereId>('career');
   const [title, setTitle] = useState('');
+  const [due, setDue] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const name = onboarding?.selections?.display_name?.split(' ')[0] ?? 'there';
 
-  const save = () => {
+  const save = async () => {
     const t = title.trim();
     if (!t) return;
-    const goalId = `g-${Date.now()}`;
+    
+    // Ensure the sphere is in onboarding selections
+    const currentSpheres = onboarding?.selections?.spheres ?? [];
+    if (!currentSpheres.includes(sphere)) {
+      await advance('spheres', [...currentSpheres, sphere]);
+    }
+
+    const goalId = crypto.randomUUID();
     dispatch({
       type: 'ADD_GOAL',
-      goal: { id: goalId, sphere, title: t, due: 'TBD', progress: 0, sub: [] },
+      goal: { id: goalId, sphere, title: t, due: formatDueDate(due), progress: 0, sub: [] },
     });
     router.replace({ pathname: '/(welcome)/add-task', params: { goalId, goalTitle: t, sphere } });
   };
 
   const skip = () => router.replace('/(tabs)');
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setDue(selectedDate);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -67,7 +89,7 @@ export default function WelcomeAddGoal() {
         <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: COLORS.ink3, marginBottom: 10 }}>
           Which area of life?
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 20 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginBottom: 24 }}>
           {SPHERES.map(id => {
             const s = SPHERE_COLORS[id];
             const active = sphere === id;
@@ -76,14 +98,14 @@ export default function WelcomeAddGoal() {
                 key={id}
                 onPress={() => setSphere(id)}
                 style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 6,
-                  paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999,
+                  width: 90, height: 160, borderRadius: 45,
+                  justifyContent: 'center', alignItems: 'center', gap: 10,
                   backgroundColor: active ? s.accent : COLORS.surface,
                   borderWidth: 1, borderColor: active ? s.accent : COLORS.ink6,
                 }}
               >
-                <Text style={{ fontSize: 13, color: active ? '#fff' : s.deep }}>{s.glyph}</Text>
-                <Text style={{ fontFamily: F.mono, fontSize: 11, letterSpacing: 0.5, color: active ? '#fff' : COLORS.ink2 }}>
+                <Text style={{ fontSize: 16, color: active ? '#fff' : s.deep }}>{s.glyph}</Text>
+                <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 0.5, color: active ? '#fff' : COLORS.ink2, textAlign: 'center' }}>
                   {s.label}
                 </Text>
               </TouchableOpacity>
@@ -97,7 +119,7 @@ export default function WelcomeAddGoal() {
         </Text>
         <View style={{
           borderRadius: 14, backgroundColor: COLORS.surface,
-          borderWidth: 1, borderColor: COLORS.ink6, padding: 16, marginBottom: 32,
+          borderWidth: 1, borderColor: COLORS.ink6, padding: 16, marginBottom: 20,
         }}>
           <TextInput
             autoFocus
@@ -105,14 +127,41 @@ export default function WelcomeAddGoal() {
             onChangeText={setTitle}
             placeholder="e.g. Save £10k this year"
             placeholderTextColor={COLORS.ink4}
-            returnKeyType="done"
-            onSubmitEditing={save}
+            returnKeyType="next"
             style={{
               fontFamily: F.display, fontSize: 22, color: COLORS.ink1,
               lineHeight: 28, letterSpacing: -0.2,
             }}
           />
         </View>
+
+        {/* Due date picker */}
+        <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: COLORS.ink3, marginBottom: 10 }}>
+          Target date
+        </Text>
+        <TouchableOpacity
+          onPress={() => setShowDatePicker(true)}
+          style={{
+            borderRadius: 14, backgroundColor: COLORS.surface,
+            borderWidth: 1, borderColor: COLORS.ink6, padding: 16, marginBottom: 32,
+            flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+          }}
+        >
+          <Text style={{ fontFamily: F.display, fontSize: 18, color: COLORS.ink1 }}>
+            {formatDueDate(due)}
+          </Text>
+          <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>CHANGE</Text>
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={due}
+            mode="date"
+            minimumDate={new Date()}
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            onChange={onDateChange}
+          />
+        )}
 
         <TouchableOpacity
           onPress={save}
@@ -136,3 +185,4 @@ export default function WelcomeAddGoal() {
     </KeyboardAvoidingView>
   );
 }
+
