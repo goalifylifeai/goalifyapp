@@ -22,6 +22,10 @@ module.exports = {
       supportsTablet: false,
       bundleIdentifier: 'com.goalifylife.app',
       usesAppleSignIn: true,
+      icon: {
+        light: './assets/icon.png',
+        dark: './assets/icon-dark.png',
+      },
       infoPlist: {
         NSCalendarsUsageDescription: 'Goalify adds your habits as recurring events so you can see them in your calendar.',
         NSCalendarsWriteOnlyAccessUsageDescription: 'Goalify adds your habits as recurring events so you can see them in your calendar.',
