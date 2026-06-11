@@ -30,6 +30,10 @@ module.exports = {
         NSCalendarsUsageDescription: 'Goalify adds your habits as recurring events so you can see them in your calendar.',
         NSCalendarsWriteOnlyAccessUsageDescription: 'Goalify adds your habits as recurring events so you can see them in your calendar.',
       },
+      // Shared container the WidgetKit extension reads (see targets/widget + lib/widget-bridge.ts).
+      entitlements: {
+        'com.apple.security.application-groups': ['group.com.goalifylife.app'],
+      },
     },
     android: {
       adaptiveIcon: {
@@ -56,6 +60,25 @@ module.exports = {
         icon: './assets/icon.png',
         color: '#1F1B17',
         sounds: [],
+      }],
+      // iOS home-screen widget (WidgetKit). Reads targets/widget/*.
+      // Set appleTeamId or pass APPLE_TEAM_ID in the build environment.
+      ['@bacons/apple-targets', {
+        appleTeamId: process.env.APPLE_TEAM_ID ?? 'XXXXXXXXXX',
+      }],
+      // Android home-screen widget. Renders widgets/GoalifyMediumWidget.tsx.
+      ['react-native-android-widget', {
+        widgets: [{
+          name: 'GoalifyMedium',
+          label: "Today's One",
+          description: 'Your focus action and streak.',
+          minWidth: '250dp',
+          minHeight: '110dp',
+          targetCellWidth: 4,
+          targetCellHeight: 2,
+          resizeMode: 'horizontal|vertical',
+          previewImage: './assets/icon.png',
+        }],
       }],
     ],
     extra: {

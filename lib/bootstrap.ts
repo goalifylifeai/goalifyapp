@@ -1,32 +1,17 @@
 import type { SphereId } from '../constants/theme';
 import { supabase, type GoalRow, type GoalSubtaskRow, type HabitRow, type HabitLogRow, type JournalEntryRow } from './supabase';
 import type { AppState, Goal, HabitItem, JournalEntry } from '../store/index';
+import { localDateISO, streakFromDates } from './date';
 
 export function computeStreak(habitId: string, logs: HabitLogRow[]): number {
   const doneDates = logs
     .filter(l => l.habit_id === habitId && l.done)
-    .map(l => l.date)
-    .sort()
-    .reverse();
-
-  let streak = 0;
-  const day = new Date();
-  day.setDate(day.getDate() - 1); // start from yesterday
-
-  for (const date of doneDates) {
-    const expected = day.toISOString().slice(0, 10);
-    if (date === expected) {
-      streak++;
-      day.setDate(day.getDate() - 1);
-    } else if (date < expected) {
-      break;
-    }
-  }
-  return streak;
+    .map(l => l.date);
+  return streakFromDates(doneDates);
 }
 
 export function deriveDoneToday(habitId: string, logs: HabitLogRow[]): boolean {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateISO();
   return logs.some(l => l.habit_id === habitId && l.date === today && l.done);
 }
 
@@ -71,7 +56,7 @@ function toJournalEntry(row: JournalEntryRow): JournalEntry {
 export async function bootstrapUserData(): Promise<Partial<AppState>> {
   const since = new Date();
   since.setFullYear(since.getFullYear() - 1);
-  const sinceDate = since.toISOString().slice(0, 10);
+  const sinceDate = localDateISO(since);
 
   const [goalsRes, subtasksRes, habitsRes, logsRes, journalRes] = await Promise.all([
     supabase.from('goals').select('*').order('created_at', { ascending: true }),

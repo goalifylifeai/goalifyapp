@@ -23,15 +23,14 @@ jest.mock('../lib/supabase', () => {
 });
 
 import { bootstrapUserData, computeStreak, deriveDoneToday } from '../lib/bootstrap';
+import { localDateISO, addDaysISO } from '../lib/date';
 import type { HabitLogRow } from '../lib/supabase';
 
 // ── computeStreak ──────────────────────────────────────────────────
 describe('computeStreak', () => {
-  const d = (offset: number) => {
-    const day = new Date();
-    day.setDate(day.getDate() - offset);
-    return day.toISOString().slice(0, 10);
-  };
+  // Local-timezone dates so the helper agrees with production "today".
+  // d(0) = today, d(1) = yesterday, ...
+  const d = (offset: number) => addDaysISO(localDateISO(), -offset);
 
   const log = (date: string, done = true): HabitLogRow => ({
     id: date,
@@ -48,6 +47,13 @@ describe('computeStreak', () => {
 
   it('returns 0 when no done logs', () => {
     expect(computeStreak('h1', [log(d(1), false)])).toBe(0);
+  });
+
+  it('counts today when today is done (no drop after bootstrap)', () => {
+    // Regression guard: completing a habit today shows streak 1, and reloading
+    // (which re-derives via computeStreak) must not reset it to 0.
+    expect(computeStreak('h1', [log(d(0))])).toBe(1);
+    expect(computeStreak('h1', [log(d(0)), log(d(1)), log(d(2))])).toBe(3);
   });
 
   it('counts 3 consecutive days ending yesterday', () => {
@@ -74,7 +80,7 @@ describe('computeStreak', () => {
 
 // ── deriveDoneToday ────────────────────────────────────────────────
 describe('deriveDoneToday', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateISO();
 
   const log = (date: string, done: boolean): HabitLogRow => ({
     id: date,

@@ -7,6 +7,7 @@ import { SectionLabel, Card, Heatmap, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
 import type { SphereId } from '../../constants/theme';
 import { exportHabitToCalendar } from '../../lib/calendar';
+import { localDateISO, streakFromDates } from '../../lib/date';
 
 const TIMEFRAMES = [
   { label: '4W', weeks: 4 },
@@ -15,7 +16,7 @@ const TIMEFRAMES = [
 ];
 
 function isoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return localDateISO(d);
 }
 
 function daysAgo(n: number) {
@@ -63,21 +64,11 @@ export default function HabitsScreen() {
 
     const completionPct = habits.length > 0 ? Math.round((totalRatio / totalDays) * 100) : 0;
 
-    // Global streak: consecutive days (ending today) where ≥1 habit done
-    let globalStreak = 0;
-    if (habits.length > 0) {
-      const cur = new Date();
-      const todayStr = isoDate(cur);
-      const anyDoneToday = habits.some(h => (h.history ?? []).includes(todayStr));
-      if (!anyDoneToday) cur.setDate(cur.getDate() - 1);
-      while (true) {
-        const dateStr = isoDate(cur);
-        const anyDone = habits.some(h => (h.history ?? []).includes(dateStr));
-        if (!anyDone) break;
-        globalStreak++;
-        cur.setDate(cur.getDate() - 1);
-      }
-    }
+    // Global streak: consecutive days (ending today) where ≥1 habit done.
+    // Uses the shared streak definition over the union of all habit histories.
+    const activeDates = new Set<string>();
+    for (const h of habits) for (const d of h.history ?? []) activeDates.add(d);
+    const globalStreak = streakFromDates(activeDates);
 
     return { heatmapValues, globalStreak, activeDays, completionPct };
   }, [habits, weeks]);

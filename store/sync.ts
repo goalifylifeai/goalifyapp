@@ -4,6 +4,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
 import { bootstrapUserData } from '../lib/bootstrap';
 import { enqueue, drainQueue, type QueueItem } from '../lib/offline-queue';
+import { localDateISO } from '../lib/date';
 import { appReducer, initialState, type AppAction, type AppState } from './index';
 
 const CACHE_KEY = '@goalify/cache';
@@ -118,7 +119,7 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
     case 'TOGGLE_HABIT': {
       const habit = state.habits.find(h => h.id === action.id);
       if (!habit) return;
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDateISO();
       const logId = `${action.id}:${today}`;
       await supabase.from('habit_logs').upsert(
         { id: logId, habit_id: action.id, user_id: userId, date: today, done: habit.doneToday },
@@ -227,7 +228,7 @@ function actionToQueueItems(action: AppAction, state: AppState, userId: string):
     case 'TOGGLE_HABIT': {
       const habit = state.habits.find(h => h.id === action.id);
       if (!habit) return [];
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDateISO();
       items.push({
         id: `habit_log:${action.id}:${today}`,
         table: 'habit_logs',
@@ -313,7 +314,7 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return;
-      if (event === 'SIGNED_IN' && session?.user) {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         userIdRef.current = session.user.id;
         try {
           const freshState = await bootstrapUserData();

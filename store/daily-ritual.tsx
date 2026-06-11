@@ -9,6 +9,9 @@ import React, {
 } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './auth';
+import { localDateISO, addDaysISO } from '../lib/date';
+import { buildWidgetSnapshot, activeDatesFromIntentions } from '../lib/widget-snapshot';
+import { writeWidgetSnapshot } from '../lib/widget-bridge';
 import type { SphereId } from '../constants/theme';
 
 export type RitualActionSource = 'goal_subtask' | 'habit' | 'free';
@@ -41,6 +44,10 @@ type DailyRitualContextValue = {
   error: string | null;
   isMorningDone: boolean;
   isEveningDone: boolean;
+  /** Consecutive days the ritual was completed, ending today. */
+  streak: number;
+  /** Local YYYY-MM-DD dates that count toward the streak (for calendars/grids). */
+  activeDates: string[];
   yesterdayNextSphere: SphereId | null;
   lockMorning: (sphere: SphereId, actions: RitualAction[]) => Promise<{ error: string | null }>;
   toggleRitualAction: (actionId: string) => Promise<void>;
@@ -53,33 +60,40 @@ const DailyRitualContext = createContext<DailyRitualContextValue | null>(null);
 const COLUMNS = 'id, user_id, date, focus_sphere, actions, must_do_done, journal_line, next_sphere, closed_at, created_at';
 
 function todayDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDateISO();
 }
 
 function yesterdayDate(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return addDaysISO(localDateISO(), -1);
 }
 
 export function DailyRitualProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [intention, setIntention] = useState<DailyIntention | null>(null);
   const [yesterdayNextSphere, setYesterdayNextSphere] = useState<SphereId | null>(null);
+  // Past days (excluding today) used to compute the streak. Today is layered on
+  // from the live `intention` so toggles update the streak immediately.
+  const [pastActiveDates, setPastActiveDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchToday = useCallback(async () => {
-    if (!user) { setIntention(null); return; }
+    if (!user) { setIntention(null); setPastActiveDates([]); return; }
     setLoading(true);
     setError(null);
 
     const today = todayDate();
     const yesterday = yesterdayDate();
+    const since = addDaysISO(today, -400);
 
-    const [todayRes, yesterdayRes] = await Promise.all([
+    const [todayRes, yesterdayRes, historyRes] = await Promise.all([
       supabase.from('daily_intentions').select(COLUMNS).eq('user_id', user.id).eq('date', today).maybeSingle(),
       supabase.from('daily_intentions').select('next_sphere').eq('user_id', user.id).eq('date', yesterday).maybeSingle(),
+      supabase.from('daily_intentions')
+        .select('date, must_do_done, closed_at')
+        .eq('user_id', user.id)
+        .gte('date', since)
+        .lt('date', today),
     ]);
 
     if (todayRes.error) setError(todayRes.error.message);
@@ -89,10 +103,24 @@ export function DailyRitualProvider({ children }: { children: ReactNode }) {
       setYesterdayNextSphere(yesterdayRes.data.next_sphere as SphereId);
     }
 
+    setPastActiveDates(activeDatesFromIntentions(historyRes.data ?? []));
+
     setLoading(false);
   }, [user]);
 
   useEffect(() => { fetchToday(); }, [fetchToday]);
+
+  // Real streak + widget snapshot, derived from past active days plus today's
+  // live ritual state. Recomputes on every toggle/close so the number is honest.
+  const { snapshot, streak, activeDates } = useMemo(() => {
+    const today = todayDate();
+    const todayActive = !!(intention && (intention.must_do_done || intention.closed_at));
+    const dates = todayActive ? [...pastActiveDates, today] : pastActiveDates;
+    const snap = buildWidgetSnapshot({ intention, activeDates: dates, today });
+    return { snapshot: snap, streak: snap.streak, activeDates: dates };
+  }, [intention, pastActiveDates]);
+
+  useEffect(() => { writeWidgetSnapshot(snapshot); }, [snapshot]);
 
   const lockMorning = useCallback(async (sphere: SphereId, actions: RitualAction[]) => {
     if (!user) return { error: 'Not signed in' };
@@ -154,12 +182,14 @@ export function DailyRitualProvider({ children }: { children: ReactNode }) {
     error,
     isMorningDone,
     isEveningDone,
+    streak,
+    activeDates,
     yesterdayNextSphere,
     lockMorning,
     toggleRitualAction,
     closeEvening,
     refresh: fetchToday,
-  }), [intention, loading, error, isMorningDone, isEveningDone, yesterdayNextSphere, lockMorning, toggleRitualAction, closeEvening, fetchToday]);
+  }), [intention, loading, error, isMorningDone, isEveningDone, streak, activeDates, yesterdayNextSphere, lockMorning, toggleRitualAction, closeEvening, fetchToday]);
 
   return <DailyRitualContext.Provider value={value}>{children}</DailyRitualContext.Provider>;
 }
