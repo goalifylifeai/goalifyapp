@@ -29,7 +29,7 @@ export default function TodayScreen() {
   const { profile } = useProfile();
   const { state, dispatch } = useStore();
   const { originalLetter } = useFutureSelf();
-  const { intention, isMorningDone, isEveningDone, toggleRitualAction } = useDailyRitual();
+  const { intention, isMorningDone, isEveningDone, streak, toggleRitualAction } = useDailyRitual();
   const router = useRouter();
 
   const ritualActions = intention?.actions ?? [];
@@ -249,7 +249,7 @@ export default function TodayScreen() {
           <Card pad={16} style={{ flex: 1 }}>
             <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: COLORS.ink3 }}>Streak</Text>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 8 }}>
-              <Text style={{ fontFamily: F.display, fontSize: 44, color: COLORS.ink1, lineHeight: 48 }}>0</Text>
+              <Text style={{ fontFamily: F.display, fontSize: 44, color: COLORS.ink1, lineHeight: 48 }}>{streak}</Text>
               <Text style={{ fontFamily: F.mono, fontSize: 13, color: COLORS.ink3, marginLeft: 4 }}>days</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 3, marginTop: 10 }}>

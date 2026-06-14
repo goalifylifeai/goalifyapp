@@ -1,5 +1,6 @@
 import React, { createContext, useContext, type ReactNode } from 'react';
 import { usePersistentStore } from './sync';
+import { localDateISO, streakFromDates } from '../lib/date';
 import type { SphereId } from '../constants/theme';
 
 // ── Domain types ──────────────────────────────────────────────────
@@ -19,22 +20,8 @@ export type HabitItem = {
   calendarEventId?: string;
 };
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function calcStreak(history: string[]): number {
-  if (history.length === 0) return 0;
-  const set = new Set(history);
-  let streak = 0;
-  const cur = new Date();
-  if (!set.has(cur.toISOString().slice(0, 10))) cur.setDate(cur.getDate() - 1);
-  while (set.has(cur.toISOString().slice(0, 10))) {
-    streak++;
-    cur.setDate(cur.getDate() - 1);
-  }
-  return streak;
-}
+const todayISO = localDateISO;
+const calcStreak = streakFromDates;
 
 export type JournalEntry = {
   id: string; date: string; sphere: SphereId; sentiment: number; excerpt: string;
