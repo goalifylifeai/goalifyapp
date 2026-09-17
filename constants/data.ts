@@ -88,13 +88,13 @@ export const TODAY_ACTIONS = [
 ];
 
 export const JOURNAL = [
-  { id: 'j1', date: 'May 8', sphere: 'career'        as SphereId, sentiment: 0.72,
+  { id: 'j1', date: 'May 8', sentiment: 0.72,
     excerpt: 'Shipped the token migration. Felt steady today — like the work finally moves on its own momentum.' },
-  { id: 'j2', date: 'May 7', sphere: 'relationships' as SphereId, sentiment: -0.18,
+  { id: 'j2', date: 'May 7', sentiment: -0.18,
     excerpt: 'Missed Jordan\'s birthday call. Sat with the small guilt of it instead of pushing it away.' },
-  { id: 'j3', date: 'May 6', sphere: 'health'        as SphereId, sentiment: 0.41,
+  { id: 'j3', date: 'May 6', sentiment: 0.41,
     excerpt: 'Long run hurt at mile four, then opened up. The body keeps surprising me when I let it.' },
-  { id: 'j4', date: 'May 5', sphere: 'finance'       as SphereId, sentiment: 0.55,
+  { id: 'j4', date: 'May 5', sentiment: 0.55,
     excerpt: 'Cut the gym I never use. Strange how a $42 cancellation feels bigger than it is.' },
 ];
 

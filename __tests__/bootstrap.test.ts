@@ -113,6 +113,33 @@ describe('bootstrapUserData', () => {
     expect(state.journal).toEqual([]);
   });
 
+  it('maps reminder and calendar fields from the habits row', async () => {
+    const { supabase } = require('../lib/supabase');
+    const makeQuery = (data: unknown[]) => ({
+      select: jest.fn().mockReturnThis(),
+      order: jest.fn().mockResolvedValue({ data, error: null }),
+      gte: jest.fn().mockReturnThis(),
+    });
+    supabase.from.mockImplementation((table: string) => {
+      if (table === 'habits') {
+        return makeQuery([{
+          id: 'h1', user_id: 'u1', label: 'Meditate', icon: '◐', sphere: 'health',
+          target_description: '10 min', calendar_event_id: 'evt-1',
+          reminder_hour: 8, reminder_minute: 30,
+          created_at: '', updated_at: '',
+        }]);
+      }
+      return makeQuery([]);
+    });
+
+    const state = await bootstrapUserData();
+    expect(state.habits).toHaveLength(1);
+    const h = state.habits![0];
+    expect(h.calendarEventId).toBe('evt-1');
+    expect(h.reminderHour).toBe(8);
+    expect(h.reminderMinute).toBe(30);
+  });
+
   it('fires all five queries (parallel fetch)', async () => {
     const { supabase } = require('../lib/supabase');
     await bootstrapUserData();

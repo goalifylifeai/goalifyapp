@@ -1,6 +1,7 @@
 import React, { createContext, useContext, type ReactNode } from 'react';
 import { usePersistentStore } from './sync';
 import { localDateISO, streakFromDates } from '../lib/date';
+import { newId } from '../lib/id';
 import type { SphereId } from '../constants/theme';
 
 // ── Domain types ──────────────────────────────────────────────────
@@ -18,13 +19,16 @@ export type HabitItem = {
   id: string; label: string; icon: string; sphere: SphereId; streak: number; target: string; doneToday: boolean;
   history?: string[]; // YYYY-MM-DD dates when completed
   calendarEventId?: string;
+  reminderHour?: number | null;
+  reminderMinute?: number | null;
+  goalId?: string; // links this habit to the goal it was created for
 };
 
 const todayISO = localDateISO;
 const calcStreak = streakFromDates;
 
 export type JournalEntry = {
-  id: string; date: string; sphere: SphereId; sentiment: number; excerpt: string;
+  id: string; date: string; sentiment: number; excerpt: string;
 };
 
 export type ChatMessage = {
@@ -51,8 +55,10 @@ export type AppAction =
   | { type: 'TOGGLE_HABIT'; id: string }
   | { type: 'ADD_HABIT'; habit: HabitItem }
   | { type: 'SET_HABIT_CALENDAR_ID'; id: string; calendarEventId: string }
+  | { type: 'SET_HABIT_REMINDER'; id: string; hour: number | null; minute: number | null }
   | { type: 'ADD_JOURNAL'; entry: JournalEntry }
-  | { type: 'SEND_COACH_MESSAGE'; text: string }
+  | { type: 'ADD_USER_MESSAGE'; text: string }
+  | { type: 'ADD_COACH_REPLY'; text: string }
   | { type: 'HYDRATE'; state: Partial<AppState> };
 
 // ── Pure reducer (unit-testable without rendering) ────────────────
@@ -137,28 +143,25 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ),
       };
 
+    case 'SET_HABIT_REMINDER':
+      return {
+        ...state,
+        habits: state.habits.map(h =>
+          h.id === action.id ? { ...h, reminderHour: action.hour, reminderMinute: action.minute } : h,
+        ),
+      };
+
     case 'ADD_JOURNAL':
       return { ...state, journal: [action.entry, ...state.journal] };
 
-    case 'SEND_COACH_MESSAGE': {
-      const userMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'user',
-        text: action.text,
-      };
-      const replies = [
-        'Your patterns suggest mornings are your strongest window. Try tackling this before 10 am.',
-        'Based on your journal sentiment, consistency matters more than intensity for you right now.',
-        'Small, ordinary steps compound quietly. Trust the streak you\'ve already built.',
-        'You\'ve navigated harder weeks than this. What does the steadiest version of you do next?',
-        'Your data shows a correlation between long runs and high-sentiment days. What if this question is best answered after movement?',
-      ];
-      const coachMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'coach',
-        text: replies[Math.floor(Math.random() * replies.length)],
-      };
-      return { ...state, coachMessages: [...state.coachMessages, userMsg, coachMsg] };
+    case 'ADD_USER_MESSAGE': {
+      const userMsg: ChatMessage = { id: newId(), role: 'user', text: action.text };
+      return { ...state, coachMessages: [...state.coachMessages, userMsg] };
+    }
+
+    case 'ADD_COACH_REPLY': {
+      const coachMsg: ChatMessage = { id: newId(), role: 'coach', text: action.text };
+      return { ...state, coachMessages: [...state.coachMessages, coachMsg] };
     }
 
     case 'HYDRATE':

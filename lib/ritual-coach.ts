@@ -1,6 +1,7 @@
 import type { SphereId } from '../constants/theme';
 import type { Goal, HabitItem } from '../store/index';
 import type { RitualAction } from '../store/daily-ritual';
+import { newId } from './id';
 
 const SPHERE_FALLBACKS: Record<SphereId, string[]> = {
   finance: [
@@ -84,7 +85,7 @@ export function proposeMorningActions(
   for (const text of fallbacks) {
     if (pool.length >= 3) break;
     pool.push({
-      id: crypto.randomUUID(),
+      id: newId(),
       text,
       sphere,
       is_must_do: false,

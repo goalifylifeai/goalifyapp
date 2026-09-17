@@ -6,8 +6,11 @@ import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import { SPHERE_LIST, VISION_CAPTIONS } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Bar, Check, Pill, F } from '../../components/ui';
 import { VisionBanner } from '../../components/vision/VisionBanner';
+import { HabitPromptModal } from '../../components/HabitPromptModal';
 import { useStore } from '../../store';
+import type { Goal } from '../../store';
 import type { SphereId } from '../../constants/theme';
+import { newId } from '../../lib/id';
 
 const VISION_TONES: Record<string, [string, string]> = {
   g1: ['#E8D5C5', '#C4A593'],
@@ -27,6 +30,7 @@ export default function GoalsScreen() {
   const { state, dispatch } = useStore();
   const { sphere: sphereParam } = useLocalSearchParams<{ sphere?: string }>();
   const [filter, setFilter] = useState<string>(sphereParam ?? 'all');
+  const [query, setQuery] = useState('');
   
   // Add/Edit state
   const [adding, setAdding] = useState(false);
@@ -38,8 +42,14 @@ export default function GoalsScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [newSubtask, setNewSubtask] = useState('');
   const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [habitPromptGoal, setHabitPromptGoal] = useState<Goal | null>(null);
 
-  const filtered = filter === 'all' ? state.goals : state.goals.filter(g => g.sphere === filter);
+  const filtered = (filter === 'all' ? state.goals : state.goals.filter(g => g.sphere === filter))
+    .filter(g => {
+      const q = query.trim().toLowerCase();
+      if (!q) return true;
+      return g.title.toLowerCase().includes(q) || g.sub.some(s => s.t.toLowerCase().includes(q));
+    });
 
   // Initialize form for adding
   const startAdd = () => {
@@ -83,7 +93,7 @@ export default function GoalsScreen() {
     
     const finalSubtasks = [...subtasks];
     if (newSubtask.trim()) finalSubtasks.push(newSubtask.trim());
-    const sub = finalSubtasks.map(t => ({ id: crypto.randomUUID(), t, done: false }));
+    const sub = finalSubtasks.map(t => ({ id: newId(), t, done: false }));
 
     if (editingId) {
       dispatch({
@@ -99,24 +109,41 @@ export default function GoalsScreen() {
             if (existing && existing.t === t) {
               return { id: existing.id, t, done: existing.done };
             }
-            return { id: crypto.randomUUID(), t, done: false };
+            return { id: newId(), t, done: false };
           }),
         },
       });
     } else {
-      dispatch({
-        type: 'ADD_GOAL',
-        goal: {
-          id: crypto.randomUUID(),
-          sphere: newSphere,
-          title,
-          due: formatDueDate(newDue),
-          progress: 0,
-          sub,
-        },
-      });
+      const goal: Goal = {
+        id: newId(),
+        sphere: newSphere,
+        title,
+        due: formatDueDate(newDue),
+        progress: 0,
+        sub,
+      };
+      dispatch({ type: 'ADD_GOAL', goal });
+      setHabitPromptGoal(goal);
     }
     cancelAdd();
+  };
+
+  const saveHabitForGoal = (label: string) => {
+    if (!habitPromptGoal) return;
+    dispatch({
+      type: 'ADD_HABIT',
+      habit: {
+        id: newId(),
+        label,
+        icon: '○',
+        sphere: habitPromptGoal.sphere,
+        streak: 0,
+        target: '1 session',
+        doneToday: false,
+        goalId: habitPromptGoal.id,
+      },
+    });
+    setHabitPromptGoal(null);
   };
 
   const cancelAdd = () => {
@@ -256,6 +283,7 @@ export default function GoalsScreen() {
   );
 
   return (
+    <>
     <ScrollView style={{ flex: 1, backgroundColor: COLORS.paper }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
       <View style={{ paddingHorizontal: 22, paddingTop: 8 }}>
         <Text style={{ fontFamily: F.mono, fontSize: 11, letterSpacing: 2.5, textTransform: 'uppercase', color: COLORS.ink3 }}>
@@ -266,8 +294,36 @@ export default function GoalsScreen() {
         </Text>
       </View>
 
+      {/* Search */}
+      <View style={{ paddingHorizontal: 22, paddingTop: 4 }}>
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', gap: 8,
+          backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.ink7,
+          borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9,
+        }}>
+          <Text style={{ fontSize: 13, color: COLORS.ink4 }}>⌕</Text>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search goals…"
+            placeholderTextColor={COLORS.ink4}
+            style={{ flex: 1, fontFamily: undefined, fontSize: 13.5, color: COLORS.ink1 }}
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')}>
+              <Text style={{ fontSize: 13, color: COLORS.ink4 }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {/* Filter pills */}
-      <View style={{ paddingHorizontal: 22, flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingVertical: 12 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ paddingVertical: 12 }}
+        contentContainerStyle={{ paddingHorizontal: 22, flexDirection: 'row', gap: 6 }}
+      >
         <Pill active={filter === 'all'} onPress={() => setFilter('all')}>All</Pill>
         {SPHERE_LIST.map(id => {
           const s = SPHERE_COLORS[id];
@@ -278,7 +334,7 @@ export default function GoalsScreen() {
             </Pill>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* Goal cards */}
       <View style={{ paddingHorizontal: 22, gap: 12 }}>
@@ -376,6 +432,13 @@ export default function GoalsScreen() {
         ) : renderGoalForm('New Goal')}
       </View>
     </ScrollView>
+    <HabitPromptModal
+      visible={!!habitPromptGoal}
+      goalTitle={habitPromptGoal?.title ?? ''}
+      onSave={saveHabitForGoal}
+      onSkip={() => setHabitPromptGoal(null)}
+    />
+    </>
   );
 }
 

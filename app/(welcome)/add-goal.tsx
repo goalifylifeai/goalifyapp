@@ -9,8 +9,10 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import type { SphereId } from '../../constants/theme';
 import { F } from '../../components/ui';
+import { HabitPromptModal } from '../../components/HabitPromptModal';
 import { useStore } from '../../store';
 import { useOnboarding } from '../../store/onboarding';
+import { newId } from '../../lib/id';
 
 const SPHERES = Object.keys(SPHERE_COLORS) as SphereId[];
 
@@ -28,25 +30,57 @@ export default function WelcomeAddGoal() {
   const [title, setTitle] = useState('');
   const [due, setDue] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [habitPrompt, setHabitPrompt] = useState<{ goalId: string; sphere: SphereId; title: string } | null>(null);
 
   const name = onboarding?.selections?.display_name?.split(' ')[0] ?? 'there';
+
+  const goToAddTask = (goalId: string, t: string) => {
+    router.replace({ pathname: '/(welcome)/add-task', params: { goalId, goalTitle: t, sphere } });
+  };
 
   const save = async () => {
     const t = title.trim();
     if (!t) return;
-    
+
     // Ensure the sphere is in onboarding selections
     const currentSpheres = onboarding?.selections?.spheres ?? [];
     if (!currentSpheres.includes(sphere)) {
       await advance('spheres', [...currentSpheres, sphere]);
     }
 
-    const goalId = crypto.randomUUID();
+    const goalId = newId();
     dispatch({
       type: 'ADD_GOAL',
       goal: { id: goalId, sphere, title: t, due: formatDueDate(due), progress: 0, sub: [] },
     });
-    router.replace({ pathname: '/(welcome)/add-task', params: { goalId, goalTitle: t, sphere } });
+    setHabitPrompt({ goalId, sphere, title: t });
+  };
+
+  const saveHabitForGoal = (label: string) => {
+    if (!habitPrompt) return;
+    dispatch({
+      type: 'ADD_HABIT',
+      habit: {
+        id: newId(),
+        label,
+        icon: '○',
+        sphere: habitPrompt.sphere,
+        streak: 0,
+        target: '1 session',
+        doneToday: false,
+        goalId: habitPrompt.goalId,
+      },
+    });
+    const { goalId, title: t } = habitPrompt;
+    setHabitPrompt(null);
+    goToAddTask(goalId, t);
+  };
+
+  const skipHabitPrompt = () => {
+    if (!habitPrompt) return;
+    const { goalId, title: t } = habitPrompt;
+    setHabitPrompt(null);
+    goToAddTask(goalId, t);
   };
 
   const skip = () => router.replace('/(tabs)');
@@ -182,6 +216,12 @@ export default function WelcomeAddGoal() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+      <HabitPromptModal
+        visible={!!habitPrompt}
+        goalTitle={habitPrompt?.title ?? ''}
+        onSave={saveHabitForGoal}
+        onSkip={skipHabitPrompt}
+      />
     </KeyboardAvoidingView>
   );
 }

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TextInput, TouchableOpacity, Alert, Platform } from 'react-native';
+import { ScrollView, View, Text, TextInput, TouchableOpacity, Alert, Platform, Share } from 'react-native';
 import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { COLORS } from '../constants/theme';
 import { BADGES, levelFromXp } from '../constants/data';
 import { Card, SectionLabel, Bar, Pill, F } from '../components/ui';
@@ -102,6 +104,44 @@ export default function ProfileScreen() {
 
   const onSignOut = async () => {
     await signOut();
+  };
+
+  const onExportData = async () => {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      goals: state.goals,
+      habits: state.habits.map(h => ({ ...h, history: h.history ?? [] })),
+      journal: state.journal,
+    };
+    const json = JSON.stringify(payload, null, 2);
+
+    // Web has no filesystem/share-sheet access — fall back to the text share dialog.
+    if (Platform.OS === 'web') {
+      try {
+        await Share.share({ title: 'Goalify data export', message: json });
+      } catch {
+        Alert.alert('Export failed', 'Could not open the share dialog.');
+      }
+      return;
+    }
+
+    try {
+      const filename = `goalify-export-${new Date().toISOString().slice(0, 10)}.json`;
+      const file = new FileSystem.File(FileSystem.Paths.cache, filename);
+      if (file.exists) file.delete();
+      file.create();
+      file.write(json);
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: 'Export your Goalify data' });
+      } else {
+        await Share.share({ title: 'Goalify data export', message: json });
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      Alert.alert('Export failed', msg);
+    }
   };
 
   const onDelete = () => {
@@ -303,6 +343,24 @@ export default function ProfileScreen() {
                   }} />
                 </TouchableOpacity>
               </View>
+            </Card>
+          </View>
+
+          <SectionLabel>Data</SectionLabel>
+          <View style={{ paddingHorizontal: 22 }}>
+            <Card pad={4}>
+              <TouchableOpacity
+                onPress={onExportData}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14 }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, fontWeight: '500' }}>Export your data</Text>
+                  <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 3, lineHeight: 17 }}>
+                    Download all your goals, habits, and journal entries as JSON.
+                  </Text>
+                </View>
+                <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3 }}>↓</Text>
+              </TouchableOpacity>
             </Card>
           </View>
 

@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, Share } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
@@ -12,6 +12,14 @@ export default function StreakInfoScreen() {
   const insets = useSafeAreaInsets();
   const { streak, activeDates } = useDailyRitual();
   const activeSet = new Set(activeDates);
+
+  const onShare = () => {
+    Share.share({
+      message: streak > 0
+        ? `${streak} day${streak === 1 ? '' : 's'} in a row on Goalify. Showing up, one day at a time. 🔥`
+        : 'Starting a new streak on Goalify today.',
+    }).catch(() => {});
+  };
 
   const today = new Date();
   const days = Array.from({ length: DAYS_SHOWN }, (_, i) => {
@@ -49,6 +57,12 @@ export default function StreakInfoScreen() {
         <View style={{ alignItems: 'center', marginBottom: 36 }}>
           <Text style={{ fontFamily: F.display, fontSize: 96, color: COLORS.ink1, lineHeight: 100, letterSpacing: -2 }}>{streak}</Text>
           <Text style={{ fontFamily: F.mono, fontSize: 14, color: COLORS.ink3, letterSpacing: 1 }}>days in a row</Text>
+          <TouchableOpacity
+            onPress={onShare}
+            style={{ marginTop: 18, backgroundColor: COLORS.ink1, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 99 }}
+          >
+            <Text style={{ fontFamily: F.mono, fontSize: 12, color: COLORS.paper, letterSpacing: 1 }}>Share streak ↗</Text>
+          </TouchableOpacity>
         </View>
 
         {/* 28-day grid */}

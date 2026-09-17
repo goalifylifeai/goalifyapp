@@ -133,28 +133,73 @@ describe('ADD_HABIT', () => {
     expect(next.habits).toHaveLength(s.habits.length + 1);
     expect(next.habits[next.habits.length - 1].label).toBe('Cold shower');
   });
+
+  it('accepts an optional goalId linking the habit to a goal', () => {
+    const s = state();
+    const goal = s.goals[0];
+    const newHabit = { id: 'h-new', label: 'Cold shower', icon: '○', sphere: 'health' as const, streak: 0, target: '2 min', doneToday: false, goalId: goal.id };
+    const next = appReducer(s, { type: 'ADD_HABIT', habit: newHabit });
+    expect(next.habits[next.habits.length - 1].goalId).toBe(goal.id);
+  });
+});
+
+// ── SET_HABIT_REMINDER ───────────────────────────────────────────────
+describe('SET_HABIT_REMINDER', () => {
+  it('sets the reminder hour and minute on the matching habit', () => {
+    const s = state();
+    const habit = s.habits[0];
+    const next = appReducer(s, { type: 'SET_HABIT_REMINDER', id: habit.id, hour: 8, minute: 30 });
+    const updated = next.habits.find(h => h.id === habit.id)!;
+    expect(updated.reminderHour).toBe(8);
+    expect(updated.reminderMinute).toBe(30);
+  });
+
+  it('clears the reminder when hour/minute are null', () => {
+    const s = state();
+    const habit = s.habits[0];
+    const withReminder = appReducer(s, { type: 'SET_HABIT_REMINDER', id: habit.id, hour: 8, minute: 30 });
+    const cleared = appReducer(withReminder, { type: 'SET_HABIT_REMINDER', id: habit.id, hour: null, minute: null });
+    const updated = cleared.habits.find(h => h.id === habit.id)!;
+    expect(updated.reminderHour).toBeNull();
+    expect(updated.reminderMinute).toBeNull();
+  });
+
+  it('does not affect other habits', () => {
+    const s = state();
+    const [habit, other] = s.habits;
+    const next = appReducer(s, { type: 'SET_HABIT_REMINDER', id: habit.id, hour: 8, minute: 0 });
+    expect(next.habits.find(h => h.id === other.id)).toEqual(other);
+  });
 });
 
 // ── ADD_JOURNAL ───────────────────────────────────────────────────
 describe('ADD_JOURNAL', () => {
   it('prepends a new journal entry', () => {
     const s = state();
-    const entry = { id: 'j-new', date: 'May 9', sphere: 'career' as const, sentiment: 0.6, excerpt: 'New entry' };
+    const entry = { id: 'j-new', date: 'May 9', sentiment: 0.6, excerpt: 'New entry' };
     const next = appReducer(s, { type: 'ADD_JOURNAL', entry });
     expect(next.journal[0]).toEqual(entry);
     expect(next.journal).toHaveLength(s.journal.length + 1);
   });
 });
 
-// ── SEND_COACH_MESSAGE ────────────────────────────────────────────
-describe('SEND_COACH_MESSAGE', () => {
-  it('adds both user and coach messages', () => {
+// ── ADD_USER_MESSAGE / ADD_COACH_REPLY ─────────────────────────────
+describe('ADD_USER_MESSAGE / ADD_COACH_REPLY', () => {
+  it('appends a user message', () => {
     const s = state();
     const prevLen = s.coachMessages.length;
-    const next = appReducer(s, { type: 'SEND_COACH_MESSAGE', text: 'What should I focus on?' });
-    expect(next.coachMessages).toHaveLength(prevLen + 2);
+    const next = appReducer(s, { type: 'ADD_USER_MESSAGE', text: 'What should I focus on?' });
+    expect(next.coachMessages).toHaveLength(prevLen + 1);
     expect(next.coachMessages[prevLen].role).toBe('user');
-    expect(next.coachMessages[prevLen + 1].role).toBe('coach');
     expect(next.coachMessages[prevLen].text).toBe('What should I focus on?');
+  });
+
+  it('appends a coach reply', () => {
+    const s = state();
+    const prevLen = s.coachMessages.length;
+    const next = appReducer(s, { type: 'ADD_COACH_REPLY', text: 'Focus on mornings.' });
+    expect(next.coachMessages).toHaveLength(prevLen + 1);
+    expect(next.coachMessages[prevLen].role).toBe('coach');
+    expect(next.coachMessages[prevLen].text).toBe('Focus on mornings.');
   });
 });

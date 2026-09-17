@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, TextInput } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, TextInput, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import { SPHERE_LIST } from '../../constants/data';
@@ -8,6 +9,8 @@ import { useStore } from '../../store';
 import type { SphereId } from '../../constants/theme';
 import { exportHabitToCalendar } from '../../lib/calendar';
 import { localDateISO, streakFromDates } from '../../lib/date';
+import { requestNotificationPermission, scheduleHabitReminder, cancelHabitReminder } from '../../lib/notifications';
+import { newId } from '../../lib/id';
 
 const TIMEFRAMES = [
   { label: '4W', weeks: 4 },
@@ -39,8 +42,27 @@ export default function HabitsScreen() {
   const [newSphere, setNewSphere] = useState<SphereId>('health');
   const [newTarget, setNewTarget] = useState('');
   const [newIcon, setNewIcon] = useState('○');
+  const [reminderPickerFor, setReminderPickerFor] = useState<string | null>(null);
 
   const toggle = (id: string) => dispatch({ type: 'TOGGLE_HABIT', id });
+
+  const setReminder = async (habit: typeof habits[number], hour: number, minute: number) => {
+    const granted = await requestNotificationPermission();
+    if (!granted) return;
+    await scheduleHabitReminder(habit.id, habit.label, hour, minute);
+    dispatch({ type: 'SET_HABIT_REMINDER', id: habit.id, hour, minute });
+  };
+
+  const clearReminder = async (habitId: string) => {
+    await cancelHabitReminder(habitId);
+    dispatch({ type: 'SET_HABIT_REMINDER', id: habitId, hour: null, minute: null });
+  };
+
+  const formatReminder = (h: number, m: number) => {
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
+  };
 
   const { heatmapValues, globalStreak, activeDays, completionPct } = useMemo(() => {
     const totalDays = weeks * 7;
@@ -77,7 +99,7 @@ export default function HabitsScreen() {
     const label = newLabel.trim();
     if (!label) return;
     const habit = {
-      id: `h-${Date.now()}`,
+      id: newId(),
       label,
       icon: newIcon,
       sphere: newSphere,
@@ -211,6 +233,37 @@ export default function HabitsScreen() {
                   }} />
                 ))}
               </View>
+
+              {/* Reminder */}
+              <TouchableOpacity
+                onPress={() => setReminderPickerFor(h.id)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}
+              >
+                <Text style={{ fontSize: 12, color: h.reminderHour != null ? s.accent : COLORS.ink4 }}>🔔</Text>
+                <Text style={{ fontFamily: F.mono, fontSize: 11, color: h.reminderHour != null ? COLORS.ink2 : COLORS.ink4 }}>
+                  {h.reminderHour != null && h.reminderMinute != null
+                    ? `Reminder at ${formatReminder(h.reminderHour, h.reminderMinute)}`
+                    : 'Add reminder'}
+                </Text>
+                {h.reminderHour != null && (
+                  <TouchableOpacity onPress={() => clearReminder(h.id)} style={{ marginLeft: 4 }}>
+                    <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink4 }}>· clear</Text>
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+
+              {reminderPickerFor === h.id && (
+                <DateTimePicker
+                  value={(() => { const d = new Date(); d.setHours(h.reminderHour ?? 8, h.reminderMinute ?? 0, 0, 0); return d; })()}
+                  mode="time"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(_e, date) => {
+                    setReminderPickerFor(null);
+                    if (!date) return;
+                    setReminder(h, date.getHours(), date.getMinutes());
+                  }}
+                />
+              )}
             </Card>
           );
         })}

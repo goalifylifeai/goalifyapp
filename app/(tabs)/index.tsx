@@ -10,6 +10,7 @@ import { useFutureSelf } from '../../store/future-self';
 import { useDailyRitual } from '../../store/daily-ritual';
 import { useProfile } from '../../store/profile';
 import type { SphereId } from '../../constants/theme';
+import { newId } from '../../lib/id';
 
 function formatToday() {
   const d = new Date();
@@ -101,7 +102,7 @@ export default function TodayScreen() {
     dispatch({
       type: 'ADD_ACTION',
       action: {
-        id: crypto.randomUUID(),
+        id: newId(),
         t: trimmed,
         sphere: newSphere,
         time: formatNextHour(),

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { ScrollView, View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
-import { SPHERE_LIST, SENTIMENT } from '../../constants/data';
-import { SectionLabel, Card, SphereChip, SentimentChart, Pill, F } from '../../components/ui';
+import { SENTIMENT } from '../../constants/data';
+import { SectionLabel, Card, SentimentChart, F } from '../../components/ui';
 import { useStore } from '../../store';
-import type { SphereId } from '../../constants/theme';
+import { newId } from '../../lib/id';
 
 function formatDate(): string {
   const d = new Date();
@@ -25,7 +25,13 @@ export default function JournalScreen() {
   const { state, dispatch } = useStore();
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
-  const [draftSphere, setDraftSphere] = useState<SphereId>('career');
+  const [query, setQuery] = useState('');
+
+  const visibleEntries = state.journal.filter(j => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return j.excerpt.toLowerCase().includes(q);
+  });
 
   const saveEntry = () => {
     const text = draft.trim();
@@ -33,9 +39,8 @@ export default function JournalScreen() {
     dispatch({
       type: 'ADD_JOURNAL',
       entry: {
-        id: `j-${Date.now()}`,
+        id: newId(),
         date: formatDate(),
-        sphere: draftSphere,
         sentiment: roughSentiment(text),
         excerpt: text.length > 140 ? text.slice(0, 138) + '…' : text,
       },
@@ -114,14 +119,6 @@ export default function JournalScreen() {
       ) : (
         <View style={{ paddingHorizontal: 22, paddingTop: 24 }}>
           <Card pad={16} style={{ borderWidth: 1, borderColor: COLORS.ink7 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-              {SPHERE_LIST.map(id => (
-                <Pill key={id} active={draftSphere === id} onPress={() => setDraftSphere(id)}>
-                  <Text style={{ color: draftSphere === id ? COLORS.paper : SPHERE_COLORS[id].deep }}>{SPHERE_COLORS[id].glyph} </Text>
-                  {SPHERE_COLORS[id].label}
-                </Pill>
-              ))}
-            </ScrollView>
             <TextInput
               autoFocus
               multiline
@@ -155,17 +152,39 @@ export default function JournalScreen() {
 
       {/* Past entries */}
       <SectionLabel>Recent entries</SectionLabel>
+      <View style={{ paddingHorizontal: 22, paddingBottom: 10 }}>
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', gap: 8,
+          backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.ink7,
+          borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9,
+        }}>
+          <Text style={{ fontSize: 13, color: COLORS.ink4 }}>⌕</Text>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search entries…"
+            placeholderTextColor={COLORS.ink4}
+            style={{ flex: 1, fontFamily: undefined, fontSize: 13.5, color: COLORS.ink1 }}
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')}>
+              <Text style={{ fontSize: 13, color: COLORS.ink4 }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
       <View style={{ paddingHorizontal: 22, gap: 10 }}>
-        {state.journal.map(j => {
-          const s = SPHERE_COLORS[j.sphere];
+        {visibleEntries.length === 0 && (
+          <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3, textAlign: 'center', paddingVertical: 12 }}>
+            {query.trim().length > 0 ? `No entries match "${query}".` : 'No entries yet — write your first one above.'}
+          </Text>
+        )}
+        {visibleEntries.map(j => {
           const sentColor = j.sentiment >= 0 ? SPHERE_COLORS.finance.accent : SPHERE_COLORS.health.accent;
           const sentLabel = j.sentiment > 0.5 ? 'bright' : j.sentiment > 0 ? 'gentle' : j.sentiment > -0.3 ? 'tender' : 'heavy';
           return (
             <Card key={j.id} pad={18}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <SphereChip sphere={j.sphere} size={20} />
-                <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 2, textTransform: 'uppercase' }}>{s.label}</Text>
-                <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink4 }}>·</Text>
                 <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 0.5 }}>{j.date}</Text>
                 <View style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: sentColor }} />

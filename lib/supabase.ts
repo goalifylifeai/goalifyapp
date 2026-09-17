@@ -71,6 +71,9 @@ export type HabitRow = {
   icon: string;
   sphere: 'finance' | 'health' | 'career' | 'relationships';
   target_description: string;
+  calendar_event_id: string | null;
+  reminder_hour: number | null;
+  reminder_minute: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -88,7 +91,6 @@ export type JournalEntryRow = {
   id: string;
   user_id: string;
   date: string;
-  sphere: 'finance' | 'health' | 'career' | 'relationships';
   sentiment: number;
   excerpt: string;
   created_at: string;

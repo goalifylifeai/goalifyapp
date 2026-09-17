@@ -2,10 +2,11 @@ import React, { useRef, useState } from 'react';
 import { ScrollView, View, Text, TextInput, TouchableOpacity, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
-import { SPHERE_LIST, SCORE_HISTORY, COACH_INSIGHTS, GOALS, VISION_CAPTIONS } from '../../constants/data';
+import { SPHERE_LIST, SCORE_HISTORY, GOALS, VISION_CAPTIONS } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Spark, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
 import { useFutureSelf, type FutureLetter, type FutureLetterHorizon } from '../../store/future-self';
+import { useCoachAi } from '../../store/coach-ai';
 
 const VISION_TONES: Record<string, [string, string]> = {
   g1: ['#E8D5C5', '#C4A593'],
@@ -47,15 +48,25 @@ export default function CoachScreen() {
 
 function CoachInsights() {
   const { state, dispatch } = useStore();
+  const { insights, insightsLoading, askCoach } = useCoachAi();
   const [reply, setReply] = useState('');
+  const [asking, setAsking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const send = () => {
     const text = reply.trim();
-    if (!text) return;
-    dispatch({ type: 'SEND_COACH_MESSAGE', text });
+    if (!text || asking) return;
+    dispatch({ type: 'ADD_USER_MESSAGE', text });
     setReply('');
+    setAsking(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    askCoach(text)
+      .then(coachReply => dispatch({ type: 'ADD_COACH_REPLY', text: coachReply }))
+      .catch(() => dispatch({ type: 'ADD_COACH_REPLY', text: "I couldn't reach your coach just now — try again in a moment." }))
+      .finally(() => {
+        setAsking(false);
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      });
   };
 
   return (
@@ -96,7 +107,13 @@ function CoachInsights() {
 
       <SectionLabel>Personalized insights</SectionLabel>
       <View style={{ paddingHorizontal: 22, gap: 10 }}>
-        {COACH_INSIGHTS.map((c, i) => {
+        {insightsLoading && !insights && (
+          <Card pad={20}><Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3 }}>Reading your goals, habits and journal…</Text></Card>
+        )}
+        {!insightsLoading && insights?.length === 0 && (
+          <Card pad={20}><Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3 }}>No insights yet — check back once you've logged a bit more.</Text></Card>
+        )}
+        {(insights ?? []).map((c, i) => {
           const tag = c.kind === 'win' ? SPHERE_COLORS.finance.accent : c.kind === 'nudge' ? SPHERE_COLORS.health.accent : SPHERE_COLORS.career.accent;
           const label = c.kind === 'win' ? 'compounding win' : c.kind === 'nudge' ? 'gentle nudge' : 'pattern';
           return (
@@ -162,68 +179,87 @@ function CoachInsights() {
 }
 
 function WeeklyReflection() {
-  const wins = [
-    { t: 'Shipped design system token migration', s: 'career' as const },
-    { t: 'Hit 47-day meditation streak',          s: 'health' as const },
-    { t: 'Cut $42/mo recurring subscription',     s: 'finance' as const },
-  ];
-  const challenges = [
-    { t: 'Skipped two strength sessions',        s: 'health' as const },
-    { t: 'Didn\'t schedule call with Priya',     s: 'relationships' as const },
-  ];
+  const { weekly, weeklyLoading } = useCoachAi();
+
+  if (weeklyLoading && !weekly) {
+    return (
+      <View style={{ paddingHorizontal: 22, paddingTop: 8 }}>
+        <Card pad={20}><Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3 }}>Putting your week together…</Text></Card>
+      </View>
+    );
+  }
+  if (!weekly) return null;
+
+  const wins = weekly.wins ?? [];
+  const challenges = weekly.challenges ?? [];
+
   return (
     <>
-      <SectionLabel action="May 3 – 9">Week in review</SectionLabel>
+      <SectionLabel action={weekly.period}>Week in review</SectionLabel>
       <View style={{ paddingHorizontal: 22 }}>
         <Card pad={22}>
-          <View style={{ flexDirection: 'row', gap: 14, marginBottom: 18 }}>
-            {[{ n: '+12', l: 'Career Δ' }, { n: '5/7', l: 'habit days' }, { n: '3', l: 'milestones' }].map((s, i) => (
-              <View key={i} style={{ flex: 1 }}>
-                <Text style={{ fontFamily: F.display, fontSize: 34, color: COLORS.ink1, lineHeight: 38 }}>{s.n}</Text>
-                <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: COLORS.ink3, marginTop: 4 }}>{s.l}</Text>
-              </View>
+          {weekly.stats?.length > 0 && (
+            <View style={{ flexDirection: 'row', gap: 14, marginBottom: 18 }}>
+              {weekly.stats.map((s, i) => (
+                <View key={i} style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: F.display, fontSize: 34, color: COLORS.ink1, lineHeight: 38 }}>{s.n}</Text>
+                  <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: COLORS.ink3, marginTop: 4 }}>{s.l}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          <Text style={{ fontFamily: F.displayItalic, fontSize: 19, lineHeight: 27, color: COLORS.ink1, letterSpacing: -0.2 }}>
+            "{weekly.quote}"
+          </Text>
+        </Card>
+      </View>
+      {wins.length > 0 && (
+        <>
+          <SectionLabel>Wins</SectionLabel>
+          <View style={{ paddingHorizontal: 22, gap: 8 }}>
+            {wins.map((w, i) => (
+              <Card key={i} pad={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <SphereChip sphere={w.s} size={22} />
+                <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, flex: 1, letterSpacing: -0.1 }}>{w.t}</Text>
+                <Text style={{ fontFamily: F.mono, fontSize: 10, color: SPHERE_COLORS.finance.accent, letterSpacing: 1.5, textTransform: 'uppercase' }}>+ win</Text>
+              </Card>
             ))}
           </View>
-          <Text style={{ fontFamily: F.displayItalic, fontSize: 19, lineHeight: 27, color: COLORS.ink1, letterSpacing: -0.2 }}>
-            "A quiet, productive week. The work moved; the body moved; the heart was patient with itself."
-          </Text>
-        </Card>
-      </View>
-      <SectionLabel>Wins</SectionLabel>
-      <View style={{ paddingHorizontal: 22, gap: 8 }}>
-        {wins.map((w, i) => (
-          <Card key={i} pad={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <SphereChip sphere={w.s} size={22} />
-            <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, flex: 1, letterSpacing: -0.1 }}>{w.t}</Text>
-            <Text style={{ fontFamily: F.mono, fontSize: 10, color: SPHERE_COLORS.finance.accent, letterSpacing: 1.5, textTransform: 'uppercase' }}>+ win</Text>
-          </Card>
-        ))}
-      </View>
-      <SectionLabel>Challenges</SectionLabel>
-      <View style={{ paddingHorizontal: 22, gap: 8 }}>
-        {challenges.map((w, i) => (
-          <Card key={i} pad={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <SphereChip sphere={w.s} size={22} />
-            <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, flex: 1, letterSpacing: -0.1 }}>{w.t}</Text>
-            <Text style={{ fontFamily: F.mono, fontSize: 10, color: SPHERE_COLORS.health.accent, letterSpacing: 1.5, textTransform: 'uppercase' }}>resist</Text>
-          </Card>
-        ))}
-      </View>
-      <SectionLabel>Next step (coach pick)</SectionLabel>
-      <View style={{ paddingHorizontal: 22 }}>
-        <Card pad={20} style={{ backgroundColor: COLORS.ink1 }}>
-          <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: 'rgba(244,239,230,0.55)' }}>Sunday, 10am</Text>
-          <Text style={{ fontFamily: F.displayItalic, fontSize: 21, lineHeight: 28, marginTop: 8, color: COLORS.paper, letterSpacing: -0.2 }}>
-            Block 45 minutes for Priya. Not a list — just one named human, one named time.
-          </Text>
-          <TouchableOpacity
-            onPress={() => Alert.alert('Added to calendar', 'Sunday 10am — Call Priya')}
-            style={{ marginTop: 14, backgroundColor: COLORS.paper, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 99, alignSelf: 'flex-start' }}
-          >
-            <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink1, fontWeight: '500' }}>Add to calendar</Text>
-          </TouchableOpacity>
-        </Card>
-      </View>
+        </>
+      )}
+      {challenges.length > 0 && (
+        <>
+          <SectionLabel>Challenges</SectionLabel>
+          <View style={{ paddingHorizontal: 22, gap: 8 }}>
+            {challenges.map((w, i) => (
+              <Card key={i} pad={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <SphereChip sphere={w.s} size={22} />
+                <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, flex: 1, letterSpacing: -0.1 }}>{w.t}</Text>
+                <Text style={{ fontFamily: F.mono, fontSize: 10, color: SPHERE_COLORS.health.accent, letterSpacing: 1.5, textTransform: 'uppercase' }}>resist</Text>
+              </Card>
+            ))}
+          </View>
+        </>
+      )}
+      {weekly.next_step && (
+        <>
+          <SectionLabel>Next step (coach pick)</SectionLabel>
+          <View style={{ paddingHorizontal: 22 }}>
+            <Card pad={20} style={{ backgroundColor: COLORS.ink1 }}>
+              <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: 'rgba(244,239,230,0.55)' }}>{weekly.next_step.when}</Text>
+              <Text style={{ fontFamily: F.displayItalic, fontSize: 21, lineHeight: 28, marginTop: 8, color: COLORS.paper, letterSpacing: -0.2 }}>
+                {weekly.next_step.title}
+              </Text>
+              <TouchableOpacity
+                onPress={() => Alert.alert('Added to calendar', `${weekly.next_step.when} — ${weekly.next_step.title}`)}
+                style={{ marginTop: 14, backgroundColor: COLORS.paper, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 99, alignSelf: 'flex-start' }}
+              >
+                <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink1, fontWeight: '500' }}>Add to calendar</Text>
+              </TouchableOpacity>
+            </Card>
+          </View>
+        </>
+      )}
     </>
   );
 }

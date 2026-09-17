@@ -40,6 +40,9 @@ function toHabitItem(row: HabitRow, logs: HabitLogRow[]): HabitItem {
     streak: computeStreak(row.id, logs),
     target: row.target_description,
     doneToday: deriveDoneToday(row.id, logs),
+    calendarEventId: row.calendar_event_id ?? undefined,
+    reminderHour: row.reminder_hour,
+    reminderMinute: row.reminder_minute,
   };
 }
 
@@ -47,7 +50,6 @@ function toJournalEntry(row: JournalEntryRow): JournalEntry {
   return {
     id: row.id,
     date: row.date,
-    sphere: row.sphere as SphereId,
     sentiment: row.sentiment,
     excerpt: row.excerpt,
   };

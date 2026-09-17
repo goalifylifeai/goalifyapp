@@ -23,8 +23,10 @@ import { OnboardingProvider, useOnboarding } from '../store/onboarding';
 import { FutureSelfProvider } from '../store/future-self';
 import { DailyRitualProvider, useDailyRitual } from '../store/daily-ritual';
 import { VisionAssetsProvider } from '../store/vision';
+import { CoachAiProvider } from '../store/coach-ai';
 import { decideRoute } from '../lib/auth-route';
-import { ensureNotificationsScheduled } from '../lib/notifications';
+import { ensureNotificationsScheduled, ensureHabitRemindersScheduled } from '../lib/notifications';
+import { useStore } from '../store';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -35,6 +37,7 @@ function NotificationListener() {
       const screen = response.notification.request.content.data?.screen as string | undefined;
       if (screen === 'morning') router.push('/ritual/morning' as any);
       else if (screen === 'evening') router.push('/ritual/evening' as any);
+      else if (screen === 'habits') router.push('/(tabs)/habits' as any);
     });
     return () => sub.remove();
   }, [router]);
@@ -46,6 +49,15 @@ function RitualScheduler() {
   useEffect(() => {
     ensureNotificationsScheduled(intention).catch(() => {});
   }, [intention]);
+  return null;
+}
+
+function HabitReminderScheduler() {
+  const { state } = useStore();
+  const habits = state.habits;
+  useEffect(() => {
+    ensureHabitRemindersScheduled(habits).catch(() => {});
+  }, [habits]);
   return null;
 }
 
@@ -100,10 +112,12 @@ export default function RootLayout() {
               <StoreProvider>
               <DailyRitualProvider>
               <VisionAssetsProvider>
+              <CoachAiProvider>
                 <AuthGate>
                   {Platform.OS === 'web' && <Analytics />}
                   <NotificationListener />
                   <RitualScheduler />
+                  <HabitReminderScheduler />
                   <Stack
                     screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.paper } }}
                   >
@@ -120,6 +134,7 @@ export default function RootLayout() {
                     <Stack.Screen name="vision" />
                   </Stack>
                 </AuthGate>
+              </CoachAiProvider>
               </VisionAssetsProvider>
               </DailyRitualProvider>
               </StoreProvider>

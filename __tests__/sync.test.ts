@@ -174,7 +174,7 @@ describe('usePersistentStore', () => {
     act(() => {
       result.current.dispatch({
         type: 'ADD_JOURNAL',
-        entry: { id: 'j1', date: '2026-05-11', sphere: 'health', sentiment: 1, excerpt: 'Good day' },
+        entry: { id: 'j1', date: '2026-05-11', sentiment: 1, excerpt: 'Good day' },
       } as AppAction);
     });
 
@@ -225,5 +225,76 @@ describe('usePersistentStore', () => {
     });
 
     expect(fromCalls).toContain('habit_logs');
+  });
+
+  it('maps SET_HABIT_REMINDER dispatch to a habits table update with reminder fields', async () => {
+    const { supabase } = getMocks();
+    const mockEq2 = jest.fn().mockResolvedValue({ error: null });
+    const mockEq1 = jest.fn(() => ({ eq: mockEq2 }));
+    const mockUpdate = jest.fn(() => ({ eq: mockEq1 }));
+
+    supabase.from.mockReturnValue({
+      update: mockUpdate,
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+      select: jest.fn(() => ({
+        order: jest.fn().mockResolvedValue({ data: [], error: null }),
+        gte: jest.fn(() => ({ order: jest.fn().mockResolvedValue({ data: [], error: null }) })),
+      })),
+    });
+
+    const { result } = renderHook(() => usePersistentStore());
+
+    await act(async () => {
+      for (const cb of mockAuthCallbacks) {
+        await cb('SIGNED_IN', { user: { id: 'user-rem' } });
+      }
+    });
+
+    act(() => {
+      result.current.dispatch({ type: 'SET_HABIT_REMINDER', id: 'h1', hour: 8, minute: 30 } as AppAction);
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
+    expect(mockUpdate).toHaveBeenCalledWith({ reminder_hour: 8, reminder_minute: 30 });
+    expect(mockEq1).toHaveBeenCalledWith('id', 'h1');
+    expect(mockEq2).toHaveBeenCalledWith('user_id', 'user-rem');
+  });
+
+  it('enqueues SET_HABIT_REMINDER when offline write fails', async () => {
+    const { supabase, queueMock } = getMocks();
+    supabase.from.mockReturnValue({
+      upsert: jest.fn().mockRejectedValue(new Error('network')),
+      select: jest.fn(() => ({
+        order: jest.fn().mockResolvedValue({ data: [], error: null }),
+        gte: jest.fn(() => ({ order: jest.fn().mockResolvedValue({ data: [], error: null }) })),
+      })),
+    });
+
+    const { result } = renderHook(() => usePersistentStore());
+
+    await act(async () => {
+      for (const cb of mockAuthCallbacks) {
+        await cb('SIGNED_IN', { user: { id: 'user-rem2' } });
+      }
+    });
+
+    act(() => {
+      result.current.dispatch({ type: 'SET_HABIT_REMINDER', id: 'h1', hour: 7, minute: 0 } as AppAction);
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
+    expect(queueMock.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        table: 'habits',
+        operation: 'upsert',
+        payload: expect.objectContaining({ reminder_hour: 7, reminder_minute: 0 }),
+      }),
+    );
   });
 });

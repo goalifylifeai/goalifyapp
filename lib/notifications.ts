@@ -31,6 +31,24 @@ async function cancelNotification(id: string) {
   await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
 }
 
+// `SchedulableTriggerInputTypes.CALENDAR` maps to iOS's UNCalendarNotificationTrigger
+// and is not supported on Android (throws "Trigger of type: calendar is not
+// supported on Android" at schedule time). DAILY is the cross-platform
+// equivalent for a notification that repeats every day at hour:minute.
+function dailyTrigger(hour: number, minute: number): Notifications.DailyTriggerInput {
+  return { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute };
+}
+
+// One-time trigger for the next occurrence of hour:minute (today, or tomorrow
+// if that time has already passed today) — the cross-platform equivalent of
+// a non-repeating CALENDAR trigger with only hour/minute set.
+function nextOccurrenceDateTrigger(hour: number, minute: number): Notifications.DateTriggerInput {
+  const target = new Date();
+  target.setHours(hour, minute, 0, 0);
+  if (target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
+  return { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target };
+}
+
 export async function scheduleMorningNotification() {
   const { morningHour, morningMinute } = await getNotificationTimes();
   await cancelNotification(IDS.morning);
@@ -41,12 +59,7 @@ export async function scheduleMorningNotification() {
       body: 'Pick today\'s One. 30 seconds, then you\'re set.',
       data: { screen: 'morning' },
     },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-      hour: morningHour,
-      minute: morningMinute,
-      repeats: true,
-    },
+    trigger: dailyTrigger(morningHour, morningMinute),
   });
 }
 
@@ -59,12 +72,7 @@ export async function scheduleLunchNudge() {
       body: 'Quick check-in?',
       data: { screen: 'morning' },
     },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-      hour: 12,
-      minute: 30,
-      repeats: false,
-    },
+    trigger: nextOccurrenceDateTrigger(12, 30),
   });
 }
 
@@ -78,12 +86,7 @@ export async function scheduleEveningClose() {
       body: 'See your streak.',
       data: { screen: 'evening' },
     },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-      hour: eveningHour,
-      minute: eveningMinute,
-      repeats: true,
-    },
+    trigger: dailyTrigger(eveningHour, eveningMinute),
   });
 }
 
@@ -127,4 +130,56 @@ export async function cancelTodayNotifications() {
     cancelNotification(IDS.lunch),
     cancelNotification(IDS.evening),
   ]);
+}
+
+// ── Per-habit reminders ─────────────────────────────────────────────
+const habitReminderId = (habitId: string) => `habit-reminder-${habitId}`;
+
+export async function scheduleHabitReminder(habitId: string, label: string, hour: number, minute: number) {
+  if (Platform.OS === 'web') return;
+  const id = habitReminderId(habitId);
+  await cancelNotification(id);
+  await Notifications.scheduleNotificationAsync({
+    identifier: id,
+    content: {
+      title: 'Habit reminder',
+      body: `Time for "${label}".`,
+      data: { screen: 'habits' },
+    },
+    trigger: dailyTrigger(hour, minute),
+  });
+}
+
+export async function cancelHabitReminder(habitId: string) {
+  await cancelNotification(habitReminderId(habitId));
+}
+
+// Reconcile scheduled habit reminders with the current habit list — call on
+// launch/hydrate so reminders survive reinstalls and cross-device edits.
+export async function ensureHabitRemindersScheduled(
+  habits: { id: string; label: string; reminderHour?: number | null; reminderMinute?: number | null }[],
+) {
+  if (Platform.OS === 'web') return;
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') return;
+
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const scheduledIds = new Set(scheduled.map(n => n.identifier));
+  const wantedIds = new Set<string>();
+
+  for (const h of habits) {
+    if (h.reminderHour == null || h.reminderMinute == null) continue;
+    const id = habitReminderId(h.id);
+    wantedIds.add(id);
+    if (!scheduledIds.has(id)) {
+      await scheduleHabitReminder(h.id, h.label, h.reminderHour, h.reminderMinute);
+    }
+  }
+
+  // Cancel reminders for habits that were deleted or had their reminder cleared.
+  for (const n of scheduled) {
+    if (n.identifier.startsWith('habit-reminder-') && !wantedIds.has(n.identifier)) {
+      await cancelNotification(n.identifier);
+    }
+  }
 }

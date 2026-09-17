@@ -116,6 +116,11 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
       break;
     }
 
+    case 'SET_HABIT_REMINDER': {
+      await supabase.from('habits').update({ reminder_hour: action.hour, reminder_minute: action.minute }).eq('id', action.id).eq('user_id', userId);
+      break;
+    }
+
     case 'TOGGLE_HABIT': {
       const habit = state.habits.find(h => h.id === action.id);
       if (!habit) return;
@@ -131,7 +136,7 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
     case 'ADD_JOURNAL': {
       const e = action.entry;
       await supabase.from('journal_entries').upsert(
-        { id: e.id, user_id: userId, date: e.date, sphere: e.sphere, sentiment: e.sentiment, excerpt: e.excerpt },
+        { id: e.id, user_id: userId, date: e.date, sentiment: e.sentiment, excerpt: e.excerpt },
         { onConflict: 'id' },
       );
       break;
@@ -140,7 +145,8 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
     // Actions that don't touch persisted tables
     case 'TOGGLE_ACTION':
     case 'ADD_ACTION':
-    case 'SEND_COACH_MESSAGE':
+    case 'ADD_USER_MESSAGE':
+    case 'ADD_COACH_REPLY':
     case 'HYDRATE':
       break;
 
@@ -268,7 +274,18 @@ function actionToQueueItems(action: AppAction, state: AppState, userId: string):
         id: `journal:${e.id}`,
         table: 'journal_entries',
         operation: 'upsert',
-        payload: { id: e.id, user_id: userId, date: e.date, sphere: e.sphere, sentiment: e.sentiment, excerpt: e.excerpt },
+        payload: { id: e.id, user_id: userId, date: e.date, sentiment: e.sentiment, excerpt: e.excerpt },
+        created_at: now,
+        retries: 0,
+      });
+      break;
+    }
+    case 'SET_HABIT_REMINDER': {
+      items.push({
+        id: `habit_reminder:${action.id}`,
+        table: 'habits',
+        operation: 'upsert',
+        payload: { id: action.id, user_id: userId, reminder_hour: action.hour, reminder_minute: action.minute },
         created_at: now,
         retries: 0,
       });

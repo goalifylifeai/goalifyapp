@@ -9,6 +9,7 @@ import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import type { SphereId } from '../../constants/theme';
 import { F } from '../../components/ui';
 import { useStore } from '../../store';
+import { newId } from '../../lib/id';
 
 export default function WelcomeAddTask() {
   const insets = useSafeAreaInsets();
@@ -47,7 +48,7 @@ export default function WelcomeAddTask() {
     }
 
     for (const t of finalSubtasks) {
-      dispatch({ type: 'ADD_SUBTASK', goalId, subtask: { id: crypto.randomUUID(), t, done: false } });
+      dispatch({ type: 'ADD_SUBTASK', goalId, subtask: { id: newId(), t, done: false } });
     }
     router.replace('/(tabs)');
   };
