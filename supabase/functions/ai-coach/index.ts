@@ -10,7 +10,7 @@ const GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions';
 const MODEL = 'anthropic/claude-sonnet-5';
 const CACHE_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-type Mode = 'insights' | 'weekly' | 'chat';
+type Mode = 'insights' | 'weekly' | 'chat' | 'nudge-streak' | 'nudge-sentiment';
 
 function daysAgoISO(n: number): string {
   const d = new Date();
@@ -159,6 +159,69 @@ Deno.serve(async (req: Request) => {
         .single();
 
       return new Response(JSON.stringify(saved), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
+    if (mode === 'nudge-streak') {
+      const today = daysAgoISO(0);
+      const [{ data: todayRow }, { data: history }] = await Promise.all([
+        adminClient.from('daily_intentions').select('must_do_done').eq('user_id', user.id).eq('date', today).maybeSingle(),
+        adminClient.from('daily_intentions').select('date,must_do_done,closed_at').eq('user_id', user.id).gte('date', since).lt('date', today),
+      ]);
+
+      if (todayRow?.must_do_done) {
+        return new Response(JSON.stringify({ shouldNudge: false }), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+
+      // Mirrors lib/date.ts's streakFromDates: consecutive active days ending yesterday.
+      const activeDates = new Set((history ?? []).filter(r => r.must_do_done || r.closed_at).map(r => r.date as string));
+      let cursor = daysAgoISO(1);
+      let streak = 0;
+      while (activeDates.has(cursor)) {
+        streak++;
+        const d = new Date(`${cursor}T00:00:00`);
+        d.setDate(d.getDate() - 1);
+        cursor = d.toISOString().slice(0, 10);
+      }
+
+      if (streak === 0) {
+        return new Response(JSON.stringify({ shouldNudge: false }), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+
+      const prompt = `The user has a ${streak}-day streak of showing up for their daily ritual, and has not yet completed today's must-do action. Return JSON: { "title": string (max 40 chars), "body": string (max 100 chars) } — a warm, specific, non-guilt-tripping evening nudge that mentions the streak and encourages finishing today's must-do.`;
+      const text = await callGateway(AI_GATEWAY_API_KEY, system, prompt);
+      const parsed = extractJson(text) as { title: string; body: string };
+
+      return new Response(JSON.stringify({ shouldNudge: true, ...parsed }), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
+    if (mode === 'nudge-sentiment') {
+      const recent = context.journal_last_30_days.slice(0, 5) as { date: string; sentiment: number }[];
+
+      // Require at least 3 entries, and a monotonically non-increasing trend
+      // (most-recent-first) with the latest entry clearly low, before nudging.
+      const trendingDown = recent.length >= 3
+        && recent.slice(0, 3).every((entry, i, arr) => i === 0 || entry.sentiment <= arr[i - 1].sentiment)
+        && recent[0].sentiment < -0.1;
+
+      if (!trendingDown) {
+        return new Response(JSON.stringify({ shouldNudge: false }), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+
+      const prompt = `The user's last 3 journal entries have trended toward lower sentiment (most recent first): ${JSON.stringify(recent.slice(0, 3))}. Return JSON: { "title": string (max 40 chars), "body": string (max 100 chars) } — a gentle, non-clinical check-in nudge. Never diagnose or use clinical language; just invite them to check in.`;
+      const text = await callGateway(AI_GATEWAY_API_KEY, system, prompt);
+      const parsed = extractJson(text) as { title: string; body: string };
+
+      return new Response(JSON.stringify({ shouldNudge: true, ...parsed }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       });
     }

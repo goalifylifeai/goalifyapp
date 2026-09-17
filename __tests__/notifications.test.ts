@@ -32,6 +32,8 @@ import {
   scheduleMorningNotification,
   scheduleLunchNudge,
   scheduleEveningClose,
+  scheduleStreakRiskNudge,
+  scheduleSentimentCheckIn,
 } from '../lib/notifications';
 
 const mockNotifications = Notifications as jest.Mocked<typeof Notifications>;
@@ -134,5 +136,52 @@ describe('ensureHabitRemindersScheduled', () => {
     mockNotifications.getPermissionsAsync.mockResolvedValueOnce({ status: 'denied' } as any);
     await ensureHabitRemindersScheduled([{ id: 'h1', label: 'Meditate', reminderHour: 8, reminderMinute: 0 }]);
     expect(mockNotifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+});
+
+// ── scheduleStreakRiskNudge ──────────────────────────────────────────
+describe('scheduleStreakRiskNudge', () => {
+  it('schedules the evening-close notification with the given AI-written copy', async () => {
+    await scheduleStreakRiskNudge('Your streak needs you', 'One more day keeps it alive.');
+    expect(mockNotifications.scheduleNotificationAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identifier: 'ritual-evening',
+        content: expect.objectContaining({
+          title: 'Your streak needs you',
+          body: 'One more day keeps it alive.',
+        }),
+        trigger: { type: 'daily', hour: 21, minute: 0 },
+      }),
+    );
+  });
+
+  it('replaces any existing evening-close notification rather than duplicating it', async () => {
+    await scheduleEveningClose();
+    await scheduleStreakRiskNudge('Your streak needs you', 'One more day keeps it alive.');
+    const scheduled = await mockNotifications.getAllScheduledNotificationsAsync();
+    expect(scheduled.filter(n => n.identifier === 'ritual-evening')).toHaveLength(1);
+  });
+});
+
+// ── scheduleSentimentCheckIn ──────────────────────────────────────────
+describe('scheduleSentimentCheckIn', () => {
+  it('schedules a one-time notification for the next morning with the given AI-written copy', async () => {
+    await scheduleSentimentCheckIn('Checking in', 'The last few days have felt heavy.');
+    const call = mockNotifications.scheduleNotificationAsync.mock.calls[0][0];
+    expect(call.identifier).toBe('sentiment-check-in');
+    expect(call.content).toMatchObject({
+      title: 'Checking in',
+      body: 'The last few days have felt heavy.',
+    });
+    const trigger = call.trigger as { type: string; date: unknown };
+    expect(trigger.type).toBe('date');
+    expect(trigger.date).toBeInstanceOf(Date);
+  });
+
+  it('replaces any previously scheduled check-in rather than duplicating it', async () => {
+    await scheduleSentimentCheckIn('Checking in', 'first');
+    await scheduleSentimentCheckIn('Checking in', 'second');
+    const scheduled = await mockNotifications.getAllScheduledNotificationsAsync();
+    expect(scheduled.filter(n => n.identifier === 'sentiment-check-in')).toHaveLength(1);
   });
 });

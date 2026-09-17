@@ -12,6 +12,7 @@ import { useDailyRitual, type RitualAction } from '../../store/daily-ritual';
 import { useStore } from '../../store';
 import { proposeMorningActions } from '../../lib/ritual-coach';
 import { onMorningLocked } from '../../lib/notifications';
+import { requestStreakRiskNudge } from '../../lib/nudges';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const STEPS = 3;
@@ -74,6 +75,8 @@ export default function MorningRitualScreen() {
 
     const mustDoDone = actions.some(a => a.is_must_do && a.done);
     await onMorningLocked(mustDoDone).catch(() => {});
+    // Fire-and-forget: may override the evening-close copy with an AI nudge.
+    requestStreakRiskNudge(mustDoDone).catch(() => {});
 
     setTimeout(() => router.replace('/(tabs)/'), 1400);
   };

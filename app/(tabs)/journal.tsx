@@ -5,6 +5,7 @@ import { SENTIMENT } from '../../constants/data';
 import { SectionLabel, Card, SentimentChart, F } from '../../components/ui';
 import { useStore } from '../../store';
 import { newId } from '../../lib/id';
+import { requestSentimentCheckIn } from '../../lib/nudges';
 
 function formatDate(): string {
   const d = new Date();
@@ -47,6 +48,8 @@ export default function JournalScreen() {
     });
     setDraft('');
     setComposing(false);
+    // Fire-and-forget: may schedule a check-in if sentiment is trending down.
+    requestSentimentCheckIn().catch(() => {});
   };
 
   const cancelCompose = () => { setDraft(''); setComposing(false); };

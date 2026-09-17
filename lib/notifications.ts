@@ -17,6 +17,7 @@ const IDS = {
   morning: 'ritual-morning',
   lunch: 'ritual-lunch',
   evening: 'ritual-evening',
+  sentimentCheckIn: 'sentiment-check-in',
 } as const;
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -130,6 +131,29 @@ export async function cancelTodayNotifications() {
     cancelNotification(IDS.lunch),
     cancelNotification(IDS.evening),
   ]);
+}
+
+// AI-decided nudges (ai-coach edge function supplies the copy) ────────
+// Reuses the evening-close slot rather than adding a second notification —
+// see lib/nudges.ts for the decision logic that calls this.
+export async function scheduleStreakRiskNudge(title: string, body: string) {
+  const { eveningHour, eveningMinute } = await getNotificationTimes();
+  await cancelNotification(IDS.evening);
+  await Notifications.scheduleNotificationAsync({
+    identifier: IDS.evening,
+    content: { title, body, data: { screen: 'evening' } },
+    trigger: dailyTrigger(eveningHour, eveningMinute),
+  });
+}
+
+export async function scheduleSentimentCheckIn(title: string, body: string) {
+  await cancelNotification(IDS.sentimentCheckIn);
+  const { morningHour, morningMinute } = await getNotificationTimes();
+  await Notifications.scheduleNotificationAsync({
+    identifier: IDS.sentimentCheckIn,
+    content: { title, body, data: { screen: 'journal' } },
+    trigger: nextOccurrenceDateTrigger(morningHour, morningMinute),
+  });
 }
 
 // ── Per-habit reminders ─────────────────────────────────────────────
