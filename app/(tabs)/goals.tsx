@@ -11,6 +11,7 @@ import { useStore } from '../../store';
 import type { Goal } from '../../store';
 import type { SphereId } from '../../constants/theme';
 import { newId } from '../../lib/id';
+import { localDateISO, formatDisplayDate } from '../../lib/date';
 
 const VISION_TONES: Record<string, [string, string]> = {
   g1: ['#E8D5C5', '#C4A593'],
@@ -20,11 +21,6 @@ const VISION_TONES: Record<string, [string, string]> = {
 };
 
 const DEFAULT_TONE: [string, string] = ['#E8E2D5', '#C9C0AE'];
-
-function formatDueDate(date: Date) {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[date.getMonth()]} ${date.getDate()}`;
-}
 
 export default function GoalsScreen() {
   const { state, dispatch } = useStore();
@@ -68,7 +64,7 @@ export default function GoalsScreen() {
     setNewTitle(g.title);
     setNewSphere(g.sphere);
     // Parse due date if possible, else today
-    const d = new Date(g.due);
+    const d = new Date(`${g.due}T00:00:00`);
     setNewDue(isNaN(d.getTime()) ? new Date() : d);
     setNewSubtask('');
     setSubtasks(g.sub.map((s: any) => s.t));
@@ -102,7 +98,7 @@ export default function GoalsScreen() {
         patch: {
           sphere: newSphere,
           title,
-          due: formatDueDate(newDue),
+          due: localDateISO(newDue),
           sub: finalSubtasks.map((t, i) => {
             // Try to preserve existing subtask ID and 'done' status
             const existing = state.goals.find(g => g.id === editingId)?.sub[i];
@@ -118,7 +114,7 @@ export default function GoalsScreen() {
         id: newId(),
         sphere: newSphere,
         title,
-        due: formatDueDate(newDue),
+        due: localDateISO(newDue),
         progress: 0,
         sub,
       };
@@ -193,7 +189,7 @@ export default function GoalsScreen() {
         style={{ paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: COLORS.ink6, marginBottom: 12 }}
       >
         <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink1 }}>
-          Due: <Text style={{ fontWeight: '600' }}>{formatDueDate(newDue)}</Text>
+          Due: <Text style={{ fontWeight: '600' }}>{formatDisplayDate(localDateISO(newDue))}</Text>
         </Text>
       </TouchableOpacity>
 
@@ -367,7 +363,7 @@ export default function GoalsScreen() {
                   <SphereChip sphere={g.sphere} size={22} />
                   <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: COLORS.ink3 }}>{s.label}</Text>
                   <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink4 }}>·</Text>
-                  <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>Due {g.due}</Text>
+                  <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>Due {formatDisplayDate(g.due)}</Text>
                   <TouchableOpacity onPress={() => startEdit(g)} style={{ marginLeft: 'auto' }}>
                     <Text style={{ fontFamily: F.mono, fontSize: 9, color: COLORS.ink4, letterSpacing: 1 }}>EDIT</Text>
                   </TouchableOpacity>

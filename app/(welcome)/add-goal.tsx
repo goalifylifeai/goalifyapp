@@ -13,13 +13,9 @@ import { HabitPromptModal } from '../../components/HabitPromptModal';
 import { useStore } from '../../store';
 import { useOnboarding } from '../../store/onboarding';
 import { newId } from '../../lib/id';
+import { localDateISO, formatDisplayDate } from '../../lib/date';
 
 const SPHERES = Object.keys(SPHERE_COLORS) as SphereId[];
-
-function formatDueDate(date: Date) {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[date.getMonth()]} ${date.getDate()}`;
-}
 
 export default function WelcomeAddGoal() {
   const insets = useSafeAreaInsets();
@@ -51,7 +47,7 @@ export default function WelcomeAddGoal() {
     const goalId = newId();
     dispatch({
       type: 'ADD_GOAL',
-      goal: { id: goalId, sphere, title: t, due: formatDueDate(due), progress: 0, sub: [] },
+      goal: { id: goalId, sphere, title: t, due: localDateISO(due), progress: 0, sub: [] },
     });
     setHabitPrompt({ goalId, sphere, title: t });
   };
@@ -182,7 +178,7 @@ export default function WelcomeAddGoal() {
           }}
         >
           <Text style={{ fontFamily: F.display, fontSize: 18, color: COLORS.ink1 }}>
-            {formatDueDate(due)}
+            {formatDisplayDate(localDateISO(due))}
           </Text>
           <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>CHANGE</Text>
         </TouchableOpacity>
