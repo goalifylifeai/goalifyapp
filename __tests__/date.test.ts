@@ -1,4 +1,4 @@
-import { localDateISO, addDaysISO, streakFromDates } from '../lib/date';
+import { localDateISO, addDaysISO, streakFromDates, formatDisplayDate } from '../lib/date';
 
 // ── localDateISO ───────────────────────────────────────────────────
 describe('localDateISO', () => {
@@ -80,5 +80,23 @@ describe('streakFromDates', () => {
 
   it('defaults today to the local current date', () => {
     expect(streakFromDates([localDateISO()])).toBe(1);
+  });
+});
+
+// ── formatDisplayDate ──────────────────────────────────────────────
+describe('formatDisplayDate', () => {
+  it('formats an ISO date with month, day, and year', () => {
+    expect(formatDisplayDate('2026-01-05')).toBe('Jan 5, 2026');
+  });
+
+  it('disambiguates entries from different years (the bug being fixed)', () => {
+    // A year-less display previously made Jan 1 2025 and Jan 1 2026
+    // indistinguishable in the journal entry list.
+    expect(formatDisplayDate('2025-01-01')).toBe('Jan 1, 2025');
+    expect(formatDisplayDate('2026-01-01')).toBe('Jan 1, 2026');
+  });
+
+  it('formats December correctly', () => {
+    expect(formatDisplayDate('2025-12-31')).toBe('Dec 31, 2025');
   });
 });

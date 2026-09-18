@@ -13,6 +13,14 @@ export function localDateISO(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+const DISPLAY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Human-readable form of a YYYY-MM-DD string, e.g. "Jan 5, 2026". */
+export function formatDisplayDate(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  return `${DISPLAY_MONTHS[month - 1]} ${day}, ${year}`;
+}
+
 /** Returns the YYYY-MM-DD `delta` days from the given local-date string. */
 export function addDaysISO(iso: string, delta: number): string {
   // Parse as local midnight (no trailing 'Z') so arithmetic stays in local time.

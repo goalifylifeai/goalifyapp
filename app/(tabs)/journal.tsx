@@ -6,12 +6,7 @@ import { SectionLabel, Card, SentimentChart, F } from '../../components/ui';
 import { useStore } from '../../store';
 import { newId } from '../../lib/id';
 import { requestSentimentCheckIn } from '../../lib/nudges';
-
-function formatDate(): string {
-  const d = new Date();
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()}`;
-}
+import { localDateISO, formatDisplayDate } from '../../lib/date';
 
 function roughSentiment(text: string): number {
   const positive = /\b(good|great|proud|happy|steady|moved|shipped|win|better|love|calm|grateful|strong|joy|excited)\b/gi;
@@ -41,7 +36,7 @@ export default function JournalScreen() {
       type: 'ADD_JOURNAL',
       entry: {
         id: newId(),
-        date: formatDate(),
+        date: localDateISO(),
         sentiment: roughSentiment(text),
         excerpt: text.length > 140 ? text.slice(0, 138) + '…' : text,
       },
@@ -188,7 +183,7 @@ export default function JournalScreen() {
           return (
             <Card key={j.id} pad={18}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 0.5 }}>{j.date}</Text>
+                <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 0.5 }}>{formatDisplayDate(j.date)}</Text>
                 <View style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: sentColor }} />
                   <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>{sentLabel}</Text>
