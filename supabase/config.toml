@@ -27,7 +27,7 @@ file_size_limit = "50MiB"
 [auth]
 enabled = true
 site_url = "goalify://"
-additional_redirect_urls = ["goalify://reset-password", "goalify://confirm"]
+additional_redirect_urls = ["goalify://reset-password", "goalify://confirm", "https://www.goalify.life/reset-password", "https://www.goalify.life/confirm"]
 jwt_expiry = 3600
 enable_signup = true
 
