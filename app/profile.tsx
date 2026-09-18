@@ -346,6 +346,24 @@ export default function ProfileScreen() {
             </Card>
           </View>
 
+          <SectionLabel>Social</SectionLabel>
+          <View style={{ paddingHorizontal: 22 }}>
+            <Card pad={4}>
+              <TouchableOpacity
+                onPress={() => router.push('/circles')}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14 }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, fontWeight: '500' }}>Circles</Text>
+                  <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 3, lineHeight: 17 }}>
+                    Small accountability groups — see who&apos;s on track today.
+                  </Text>
+                </View>
+                <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3 }}>→</Text>
+              </TouchableOpacity>
+            </Card>
+          </View>
+
           <SectionLabel>Data</SectionLabel>
           <View style={{ paddingHorizontal: 22 }}>
             <Card pad={4}>
