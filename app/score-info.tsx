@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPHERE_COLORS } from '../constants/theme';
 import { F, Ring, Bar } from '../components/ui';
-import { SPHERE_LIST } from '../constants/data';
+import { SPHERE_LIST, computeSphereData, computeOverallScore } from '../constants/data';
 import { useStore } from '../store';
 
 const BANDS = [
@@ -17,18 +17,8 @@ export default function ScoreInfoScreen() {
   const insets = useSafeAreaInsets();
   const { state } = useStore();
 
-  const sphereData = SPHERE_LIST.reduce((acc, id) => {
-    const goals = state.goals.filter(g => g.sphere === id);
-    const avg = goals.length > 0
-      ? goals.reduce((s, g) => s + g.progress, 0) / goals.length
-      : 0;
-    acc[id] = { count: goals.length, progress: avg };
-    return acc;
-  }, {} as Record<string, { count: number; progress: number }>);
-
-  const overall = Math.round(
-    Object.values(sphereData).reduce((s, d) => s + d.progress, 0) / SPHERE_LIST.length * 100,
-  );
+  const sphereData = computeSphereData(state.goals);
+  const overall = computeOverallScore(sphereData);
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.paper }}>
@@ -66,7 +56,7 @@ export default function ScoreInfoScreen() {
             2. Each <Text style={{ color: COLORS.ink1, fontWeight: '600' }}>sphere score</Text> is the average of all goal progress bars in that sphere.
           </Text>
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: COLORS.ink2, lineHeight: 20 }}>
-            3. The <Text style={{ color: COLORS.ink1, fontWeight: '600' }}>overall score</Text> is the average of all four sphere scores × 100.
+            3. The <Text style={{ color: COLORS.ink1, fontWeight: '600' }}>overall score</Text> is the average of the sphere scores for spheres where you have at least one goal, × 100.
           </Text>
         </View>
 

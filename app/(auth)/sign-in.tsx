@@ -32,13 +32,13 @@ export default function SignIn() {
         <Text style={{ fontFamily: F.display, fontSize: 38, color: COLORS.ink1, marginTop: 28 }}>Welcome back.</Text>
 
         <View style={{ marginTop: 32, gap: 14 }}>
-          <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-          <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry />
+          <Field testID="email-input" label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+          <Field testID="password-input" label="Password" value={password} onChangeText={setPassword} secureTextEntry />
         </View>
 
         {error && <Text style={errStyle}>{error}</Text>}
 
-        <TouchableOpacity onPress={onSubmit} disabled={busy || !email || !password} style={[btn, { marginTop: 24, opacity: busy || !email || !password ? 0.5 : 1 }]}>
+        <TouchableOpacity testID="sign-in-button" onPress={onSubmit} disabled={busy || !email || !password} style={[btn, { marginTop: 24, opacity: busy || !email || !password ? 0.5 : 1 }]}>
           <Text style={btnText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
         </TouchableOpacity>
 

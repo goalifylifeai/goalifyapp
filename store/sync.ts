@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { bootstrapUserData } from '../lib/bootstrap';
 import { enqueue, drainQueue, type QueueItem } from '../lib/offline-queue';
 import { localDateISO } from '../lib/date';
-import { appReducer, initialState, type AppAction, type AppState } from './index';
+import { appReducer, initialState, type AppAction, type AppState } from './reducer';
 
 const CACHE_KEY = '@goalify/cache';
 

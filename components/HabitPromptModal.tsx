@@ -35,7 +35,7 @@ export function HabitPromptModal({ visible, goalTitle, onSave, onSkip }: HabitPr
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', paddingHorizontal: 28 }}
       >
-        <View style={{ backgroundColor: COLORS.surface, borderRadius: 18, padding: 22 }}>
+        <View testID="habit-prompt-modal" style={{ backgroundColor: COLORS.surface, borderRadius: 18, padding: 22 }}>
           <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: COLORS.ink3, marginBottom: 10 }}>
             Daily habit for “{goalTitle}”
           </Text>
@@ -43,6 +43,7 @@ export function HabitPromptModal({ visible, goalTitle, onSave, onSkip }: HabitPr
             What's one daily habit that moves this forward?
           </Text>
           <TextInput
+            testID="habit-label-input"
             autoFocus
             value={label}
             onChangeText={setLabel}
@@ -56,10 +57,11 @@ export function HabitPromptModal({ visible, goalTitle, onSave, onSkip }: HabitPr
             }}
           />
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
-            <TouchableOpacity onPress={skip} style={{ padding: 8 }}>
+            <TouchableOpacity testID="skip-habit-button" onPress={skip} style={{ padding: 8 }}>
               <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3 }}>Skip</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              testID="save-habit-button"
               onPress={save}
               disabled={!label.trim()}
               style={{ backgroundColor: COLORS.ink1, paddingHorizontal: 20, paddingVertical: 9, borderRadius: 99, opacity: label.trim() ? 1 : 0.4 }}

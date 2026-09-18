@@ -179,6 +179,7 @@ export default function GoalsScreen() {
       )}
 
       <TextInput
+        testID="goal-title-input"
         autoFocus
         value={newTitle}
         onChangeText={setNewTitle}
@@ -271,6 +272,7 @@ export default function GoalsScreen() {
             <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3 }}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            testID="save-goal-button"
             onPress={saveGoal}
             disabled={!newTitle.trim()}
             style={{ backgroundColor: COLORS.ink1, paddingHorizontal: 20, paddingVertical: 9, borderRadius: 99, opacity: newTitle.trim() ? 1 : 0.4 }}
@@ -419,6 +421,7 @@ export default function GoalsScreen() {
         {/* Add goal — inline form or trigger */}
         {!adding ? (
           <TouchableOpacity
+            testID="new-goal-button"
             onPress={startAdd}
             style={{
               borderWidth: 1, borderColor: COLORS.ink5, borderStyle: 'dashed',

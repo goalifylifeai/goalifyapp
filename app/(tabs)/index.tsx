@@ -3,7 +3,7 @@ import { ScrollView, View, Text, TouchableOpacity, TextInput, Animated } from 'r
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
-import { SPHERE_LIST, levelFromXp } from '../../constants/data';
+import { SPHERE_LIST, levelFromXp, computeSphereData, computeOverallScore } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Ring, Bar, Check, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
 import { useFutureSelf } from '../../store/future-self';
@@ -46,25 +46,18 @@ export default function TodayScreen() {
   ];
 
   // Sphere calculations
-  const sphereData = SPHERE_LIST.reduce((acc, id) => {
-    const goals = state.goals.filter(g => g.sphere === id);
-    const avgProgress = goals.length > 0 
-      ? goals.reduce((sum, g) => sum + g.progress, 0) / goals.length 
-      : 0;
-    acc[id] = { count: goals.length, progress: avgProgress };
-    return acc;
-  }, {} as Record<SphereId, { count: number; progress: number }>);
-
-  const overall = Math.round(
-    Object.values(sphereData).reduce((sum, d) => sum + d.progress, 0) / SPHERE_LIST.length * 100
-  );
+  const sphereData = computeSphereData(state.goals);
+  const overall = computeOverallScore(sphereData);
 
   const lvl = levelFromXp(overall * 50); // Arbitrary XP calculation based on progress
   
-  const sortedSpheres = [...SPHERE_LIST].sort((a, b) => sphereData[b].progress - sphereData[a].progress);
-  const top = sortedSpheres[0];
-  const low = sortedSpheres[sortedSpheres.length - 1];
-  
+  // Only compare spheres the user has actually started (has a goal in) —
+  // an empty sphere isn't "holding you back", it just hasn't been touched yet.
+  const startedSpheres = SPHERE_LIST.filter(id => sphereData[id].count > 0)
+    .sort((a, b) => sphereData[b].progress - sphereData[a].progress);
+  const top = startedSpheres[0];
+  const low = startedSpheres[startedSpheres.length - 1];
+
   const band = overall >= 80 ? 'Thriving' : overall >= 65 ? 'Steady' : overall >= 50 ? 'Building' : 'Tending';
 
   const [addingAction, setAddingAction] = useState(false);
@@ -178,16 +171,27 @@ export default function TodayScreen() {
           </Ring>
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: COLORS.ink3 }}>
-              Trending · <Text style={{ color: SPHERE_COLORS.finance.accent }}>+4</Text>
+              Overall
             </Text>
             <Text style={{ fontFamily: F.displayItalic, fontSize: 24, color: COLORS.ink2, lineHeight: 28, marginTop: 4, letterSpacing: -0.4 }}>
               {band}.
             </Text>
             <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 6, lineHeight: 17 }}>
-              Lifted by{' '}
-              <Text style={{ color: SPHERE_COLORS[top].accent, fontWeight: '600' }}>{SPHERE_COLORS[top].label.toLowerCase()}</Text>
-              , held back by{' '}
-              <Text style={{ color: SPHERE_COLORS[low].accent, fontWeight: '600' }}>{SPHERE_COLORS[low].label.toLowerCase()}</Text>.
+              {startedSpheres.length === 0 ? (
+                'Add a goal to start tracking your spheres.'
+              ) : top === low ? (
+                <>
+                  Powered by{' '}
+                  <Text style={{ color: SPHERE_COLORS[top].accent, fontWeight: '600' }}>{SPHERE_COLORS[top].label.toLowerCase()}</Text>.
+                </>
+              ) : (
+                <>
+                  Lifted by{' '}
+                  <Text style={{ color: SPHERE_COLORS[top].accent, fontWeight: '600' }}>{SPHERE_COLORS[top].label.toLowerCase()}</Text>
+                  , held back by{' '}
+                  <Text style={{ color: SPHERE_COLORS[low].accent, fontWeight: '600' }}>{SPHERE_COLORS[low].label.toLowerCase()}</Text>.
+                </>
+              )}
             </Text>
             <View style={{ flexDirection: 'row', gap: 3, height: 6, marginTop: 10 }}>
               {SPHERE_LIST.map(id => (

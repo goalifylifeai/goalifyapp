@@ -1,4 +1,5 @@
 import type { SphereId } from './theme';
+import type { Goal } from '../store/reducer';
 
 export const SPHERE_LIST: SphereId[] = ['finance', 'health', 'career', 'relationships'];
 
@@ -149,6 +150,27 @@ export const VISION_CAPTIONS: Record<string, string> = {
   g3: 'A stage, a half-empty notebook, the team that built it with you.',
   g4: 'A long table. Six chairs. Candles already lit before you arrive.',
 };
+
+export function computeSphereData(goals: Goal[]): Record<SphereId, { count: number; progress: number }> {
+  return SPHERE_LIST.reduce((acc, id) => {
+    const sphereGoals = goals.filter(g => g.sphere === id);
+    const avgProgress = sphereGoals.length > 0
+      ? sphereGoals.reduce((sum, g) => sum + g.progress, 0) / sphereGoals.length
+      : 0;
+    acc[id] = { count: sphereGoals.length, progress: avgProgress };
+    return acc;
+  }, {} as Record<SphereId, { count: number; progress: number }>);
+}
+
+// Overall score only averages spheres the user has actually started (has a goal
+// in). A sphere with no goals yet shouldn't drag the score toward 0 — it should
+// be neutral until the user engages with it.
+export function computeOverallScore(sphereData: Record<SphereId, { count: number; progress: number }>): number {
+  const startedSpheres = Object.values(sphereData).filter(d => d.count > 0);
+  if (startedSpheres.length === 0) return 0;
+  const avg = startedSpheres.reduce((sum, d) => sum + d.progress, 0) / startedSpheres.length;
+  return Math.round(avg * 100);
+}
 
 export function levelFromXp(xp: number) {
   let lvl = LEVELS[0];

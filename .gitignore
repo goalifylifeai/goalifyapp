@@ -45,6 +45,12 @@ supabase/.temp
 /ios
 /android
 .vercel
+/targets/widget/Assets.xcassets
+/targets/widget/Info.plist
+/targets/widget/generated.entitlements
+
+# test output
+/test-results
 
 # OAuth client secrets
 client_secret_*.json
