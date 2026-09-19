@@ -24,6 +24,7 @@ import { FutureSelfProvider } from '../store/future-self';
 import { DailyRitualProvider, useDailyRitual } from '../store/daily-ritual';
 import { VisionAssetsProvider } from '../store/vision';
 import { CoachAiProvider } from '../store/coach-ai';
+import { CirclesProvider } from '../store/circles';
 import { decideRoute } from '../lib/auth-route';
 import { ensureNotificationsScheduled, ensureHabitRemindersScheduled } from '../lib/notifications';
 import { useStore } from '../store';
@@ -113,6 +114,7 @@ export default function RootLayout() {
               <DailyRitualProvider>
               <VisionAssetsProvider>
               <CoachAiProvider>
+              <CirclesProvider>
                 <AuthGate>
                   {Platform.OS === 'web' && <Analytics />}
                   <NotificationListener />
@@ -132,8 +134,10 @@ export default function RootLayout() {
                     <Stack.Screen name="streak-info" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="ritual" />
                     <Stack.Screen name="vision" />
+                    <Stack.Screen name="circles" />
                   </Stack>
                 </AuthGate>
+              </CirclesProvider>
               </CoachAiProvider>
               </VisionAssetsProvider>
               </DailyRitualProvider>
