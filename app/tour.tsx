@@ -66,6 +66,15 @@ const SLIDES: Slide[] = [
     body: 'The AI coach reads your journal sentiment, goal progress, and habit streaks — then tells you what to do next and why.',
     hint: 'The more you use the app, the sharper the insights get.',
   },
+  {
+    glyph: '◐',
+    glyphBg: '#E8E2D5',
+    glyphColor: COLORS.ink2,
+    label: 'Circles',
+    title: 'Light-touch\naccountability.',
+    body: "Create or join a small circle with people you know. Members only see whether you finished today's must-do and your streak — never your goals, habits, or journal.",
+    hint: 'Invite-only. Share your code with a friend to get started.',
+  },
 ];
 
 export default function TourScreen() {
