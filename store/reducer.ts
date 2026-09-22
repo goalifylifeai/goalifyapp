@@ -26,7 +26,9 @@ const todayISO = localDateISO;
 const calcStreak = streakFromDates;
 
 export type JournalEntry = {
-  id: string; date: string; sphere: SphereId; sentiment: number; excerpt: string;
+  id: string; date: string; sentiment: number;
+  excerpt: string; // short preview (≤140 chars)
+  body?: string;   // full text; absent on entries written before migration 0015
 };
 
 export type ChatMessage = {
