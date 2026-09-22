@@ -3,28 +3,14 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { F, Ring } from '../components/ui';
-import { LEVELS, levelFromXp } from '../constants/data';
+import { LEVELS, levelForGoals } from '../constants/data';
 import { useStore } from '../store';
-import { SPHERE_LIST } from '../constants/data';
 
 export default function LevelInfoScreen() {
   const insets = useSafeAreaInsets();
   const { state } = useStore();
 
-  const sphereData = SPHERE_LIST.reduce((acc, id) => {
-    const goals = state.goals.filter(g => g.sphere === id);
-    const avg = goals.length > 0
-      ? goals.reduce((s, g) => s + g.progress, 0) / goals.length
-      : 0;
-    acc[id] = avg;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const overall = Math.round(
-    Object.values(sphereData).reduce((s, p) => s + p, 0) / SPHERE_LIST.length * 100,
-  );
-
-  const lvl = levelFromXp(overall * 50);
+  const lvl = levelForGoals(state.goals);
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.ink1 }}>

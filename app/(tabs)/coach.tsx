@@ -1,30 +1,36 @@
 import React, { useRef, useState } from 'react';
-import { ScrollView, View, Text, TextInput, TouchableOpacity, Alert, Modal } from 'react-native';
+import { ScrollView, View, Text, TextInput, TouchableOpacity, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
-import { SPHERE_LIST, SCORE_HISTORY, GOALS, VISION_CAPTIONS } from '../../constants/data';
-import { SectionLabel, Card, SphereChip, Spark, Pill, F } from '../../components/ui';
+import { SPHERE_VISION_CAPTIONS, SPHERE_VISION_TONES } from '../../constants/data';
+import { SectionLabel, Card, SphereChip, Pill, F } from '../../components/ui';
+import { VisionBanner } from '../../components/vision/VisionBanner';
 import { useStore } from '../../store';
 import { useFutureSelf, type FutureLetter, type FutureLetterHorizon } from '../../store/future-self';
-import { useCoachAi } from '../../store/coach-ai';
+import { useCoachAi, CoachLimitError } from '../../store/coach-ai';
 
-const VISION_TONES: Record<string, [string, string]> = {
-  g1: ['#E8D5C5', '#C4A593'],
-  g2: ['#E8E2D5', '#C9C0AE'],
-  g3: ['#D8DEE0', '#A0AAAE'],
-  g4: ['#E8D8DC', '#BB9BA0'],
-};
+type CoachTab = 'insights' | 'weekly' | 'vision' | 'future';
 
-type CoachTab = 'insights' | 'weekly' | 'vision' | 'replay' | 'future';
+function timeAgo(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
 
 export default function CoachScreen() {
   const [tab, setTab] = useState<CoachTab>('insights');
+  const { insightsUpdatedAt } = useCoachAi();
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: COLORS.paper }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
       <View style={{ paddingHorizontal: 22, paddingTop: 8 }}>
         <Text style={{ fontFamily: F.mono, fontSize: 11, letterSpacing: 2.5, textTransform: 'uppercase', color: COLORS.ink3 }}>
-          Updated 3 hours ago · ✦ AI
+          {insightsUpdatedAt ? `Updated ${timeAgo(insightsUpdatedAt)}` : 'Your coach'} · ✦ AI
         </Text>
         <Text style={{ fontFamily: F.display, fontSize: 44, color: COLORS.ink1, letterSpacing: -0.8, lineHeight: 52, marginTop: 8, marginBottom: 16 }}>
           Coach.
@@ -32,7 +38,7 @@ export default function CoachScreen() {
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 22, gap: 6, paddingBottom: 6 }}>
-        {([['insights', 'Insights'], ['weekly', 'Weekly'], ['vision', 'Vision'], ['replay', 'Replay'], ['future', 'Future']] as [CoachTab, string][]).map(([k, l]) => (
+        {([['insights', 'Insights'], ['weekly', 'Weekly'], ['vision', 'Vision'], ['future', 'Future']] as [CoachTab, string][]).map(([k, l]) => (
           <Pill key={k} active={tab === k} onPress={() => setTab(k)}>{l}</Pill>
         ))}
       </ScrollView>
@@ -40,7 +46,6 @@ export default function CoachScreen() {
       {tab === 'insights' && <CoachInsights />}
       {tab === 'weekly'   && <WeeklyReflection />}
       {tab === 'vision'   && <VisionBoard />}
-      {tab === 'replay'   && <LifeReplay />}
       {tab === 'future'   && <FutureSelf />}
     </ScrollView>
   );
@@ -62,7 +67,10 @@ function CoachInsights() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     askCoach(text)
       .then(coachReply => dispatch({ type: 'ADD_COACH_REPLY', text: coachReply }))
-      .catch(() => dispatch({ type: 'ADD_COACH_REPLY', text: "I couldn't reach your coach just now — try again in a moment." }))
+      .catch(err => dispatch({
+        type: 'ADD_COACH_REPLY',
+        text: err instanceof CoachLimitError ? err.message : "I couldn't reach your coach just now — try again in a moment.",
+      }))
       .finally(() => {
         setAsking(false);
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -71,40 +79,6 @@ function CoachInsights() {
 
   return (
     <>
-      <SectionLabel action="12 weeks">Sphere history</SectionLabel>
-      <View style={{ paddingHorizontal: 22 }}>
-        <Card pad={16}>
-          {SPHERE_LIST.map((id, i) => {
-            const s = SPHERE_COLORS[id];
-            const data = SCORE_HISTORY[id];
-            const cur = data[data.length - 1];
-            const prev = data[data.length - 2];
-            const trend = cur - prev;
-            return (
-              <View key={id} style={{
-                flexDirection: 'row', alignItems: 'center', gap: 10,
-                paddingVertical: 10,
-                borderTopWidth: i ? 0.5 : 0, borderTopColor: COLORS.ink7,
-              }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: 110 }}>
-                  <SphereChip sphere={id} size={20} />
-                  <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink1, fontWeight: '500' }}>{s.label}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Spark data={data} color={s.accent} w={120} h={32} />
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ fontFamily: F.mono, fontSize: 14, color: COLORS.ink1 }}>{cur}</Text>
-                  <Text style={{ fontFamily: F.mono, fontSize: 9, color: trend >= 0 ? SPHERE_COLORS.finance.accent : SPHERE_COLORS.health.accent, letterSpacing: 0.5 }}>
-                    {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
-        </Card>
-      </View>
-
       <SectionLabel>Personalized insights</SectionLabel>
       <View style={{ paddingHorizontal: 22, gap: 10 }}>
         {insightsLoading && !insights && (
@@ -250,12 +224,6 @@ function WeeklyReflection() {
               <Text style={{ fontFamily: F.displayItalic, fontSize: 21, lineHeight: 28, marginTop: 8, color: COLORS.paper, letterSpacing: -0.2 }}>
                 {weekly.next_step.title}
               </Text>
-              <TouchableOpacity
-                onPress={() => Alert.alert('Added to calendar', `${weekly.next_step.when} — ${weekly.next_step.title}`)}
-                style={{ marginTop: 14, backgroundColor: COLORS.paper, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 99, alignSelf: 'flex-start' }}
-              >
-                <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink1, fontWeight: '500' }}>Add to calendar</Text>
-              </TouchableOpacity>
             </Card>
           </View>
         </>
@@ -265,105 +233,38 @@ function WeeklyReflection() {
 }
 
 function VisionBoard() {
-  const goalVisions = GOALS.map(g => ({
-    goal: g,
-    caption: VISION_CAPTIONS[g.id],
-    tone: VISION_TONES[g.id] ?? ['#E8E2D5', '#C9C0AE'] as [string, string],
-  }));
+  const { state } = useStore();
 
   return (
     <>
-      <SectionLabel action="Regenerate ↻">Vision board</SectionLabel>
-      <View style={{ paddingHorizontal: 22 }}>
-        <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3, lineHeight: 19, marginBottom: 14, letterSpacing: -0.1 }}>
-          One image per active goal. Generated from what you said you wanted, not photographs.
+      <SectionLabel>Vision board</SectionLabel>
+      <View style={{ paddingHorizontal: 22, gap: 10 }}>
+        <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3, lineHeight: 19, marginBottom: 4, letterSpacing: -0.1 }}>
+          One scene per goal that moves forward as you tick off its steps. Tap a goal to see every stage.
         </Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {goalVisions.map((v, i) => {
-            const s = SPHERE_COLORS[v.goal.sphere];
-            return (
-              <LinearGradient
-                key={v.goal.id}
-                colors={v.tone}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={{ width: '47%', aspectRatio: 1 / 1.15, borderRadius: 18, overflow: 'hidden', position: 'relative' }}
-              >
-                <View style={{ position: 'absolute', top: 12, left: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <SphereChip sphere={v.goal.sphere} size={22} style={{ backgroundColor: 'rgba(255,255,255,0.75)' }} />
-                  <View style={{ backgroundColor: 'rgba(255,255,255,0.55)', borderRadius: 99, paddingHorizontal: 7, paddingVertical: 3 }}>
-                    <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(30,25,20,0.7)' }}>Goal {i + 1}</Text>
-                  </View>
-                </View>
-                <View style={{ position: 'absolute', bottom: 14, left: 14, right: 14 }}>
-                  <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: 'rgba(30,25,20,0.65)', marginBottom: 4 }} numberOfLines={2}>
-                    {v.goal.title}
-                  </Text>
-                  <Text style={{ fontFamily: F.displayItalic, fontSize: 13, lineHeight: 17, color: 'rgba(20,15,10,0.92)', letterSpacing: -0.1 }}>
-                    {v.caption}
-                  </Text>
-                </View>
-              </LinearGradient>
-            );
-          })}
-        </View>
-      </View>
-
-      <SectionLabel>Affirmations queue</SectionLabel>
-      <View style={{ paddingHorizontal: 22, gap: 8 }}>
-        {[
-          { q: 'I move toward what I want with steady, ordinary courage.',  s: 'finance' as const },
-          { q: 'My body keeps showing up. I show up back.',                  s: 'health' as const },
-          { q: 'The work I do matters because the people around it do.',    s: 'career' as const },
-        ].map((a, i) => (
-          <Card key={i} pad={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <SphereChip sphere={a.s} size={20} />
-            <Text style={{ fontFamily: F.displayItalic, fontSize: 15, color: COLORS.ink1, flex: 1, lineHeight: 20, letterSpacing: -0.1 }}>{a.q}</Text>
+        {state.goals.length === 0 ? (
+          <Card pad={20}>
+            <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3 }}>
+              Add a goal to start your vision board.
+            </Text>
+          </Card>
+        ) : state.goals.map(g => (
+          <Card key={g.id} pad={0} style={{ overflow: 'hidden' }}>
+            <VisionBanner
+              goalId={g.id}
+              goalTitle={g.title}
+              sphere={g.sphere}
+              progress={g.progress}
+              caption={SPHERE_VISION_CAPTIONS[g.sphere]}
+              fallbackColors={SPHERE_VISION_TONES[g.sphere]}
+              onPress={() => router.push(`/vision/${g.id}` as any)}
+            />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 }}>
+              <SphereChip sphere={g.sphere} size={20} />
+              <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, flex: 1 }} numberOfLines={1}>{g.title}</Text>
+            </View>
           </Card>
         ))}
-      </View>
-    </>
-  );
-}
-
-function LifeReplay() {
-  const months = [
-    { m: 'April 2026',    win: 'Built a 47-day meditation streak.',           challenge: 'Skipped strength sessions twice.',          lesson: 'Movement unlocks reflection — not the other way round.', tone: ['#E8D5C5', '#C4A593'] as [string, string] },
-    { m: 'March 2026',    win: 'Shipped the design system v1 milestone.',     challenge: 'Drifted from finance habits in week 3.',     lesson: 'Career flow is real — protect it without losing the rest.', tone: ['#D8DEE0', '#A0AAAE'] as [string, string] },
-    { m: 'February 2026', win: 'First $5,000 saved.',                         challenge: 'Two journal-empty weeks.',                   lesson: 'Money quiet means I can be quiet too.', tone: ['#E8E2D5', '#C9C0AE'] as [string, string] },
-    { m: 'January 2026',  win: 'Kicked off four spheres at once.',            challenge: 'Over-planned, under-rested.',                lesson: 'Choose less; go deeper.', tone: ['#E8D8DC', '#BB9BA0'] as [string, string] },
-  ];
-  const [idx, setIdx] = useState(0);
-  const m = months[idx];
-
-  return (
-    <>
-      <SectionLabel action="Share →">Life replay</SectionLabel>
-      <View style={{ paddingHorizontal: 22 }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginBottom: 10 }}>
-          {months.map((mo, i) => (
-            <Pill key={i} active={idx === i} onPress={() => setIdx(i)}>{mo.m.split(' ')[0]}</Pill>
-          ))}
-        </ScrollView>
-        <Card pad={0} style={{ overflow: 'hidden' }}>
-          <LinearGradient colors={m.tone} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 130 }}>
-            <View style={{ position: 'absolute', bottom: 14, left: 18 }}>
-              <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(30,25,20,0.55)' }}>Your growth story</Text>
-              <Text style={{ fontFamily: F.displayItalic, fontSize: 28, lineHeight: 32, color: 'rgba(20,15,10,0.92)', letterSpacing: -0.5, marginTop: 4 }}>{m.m}</Text>
-            </View>
-          </LinearGradient>
-          <View style={{ padding: 18 }}>
-            {[
-              { tag: 'Biggest win',   body: m.win,       c: SPHERE_COLORS.finance.accent },
-              { tag: 'Top challenge', body: m.challenge, c: SPHERE_COLORS.health.accent  },
-              { tag: 'Key lesson',    body: m.lesson,    c: SPHERE_COLORS.career.accent  },
-            ].map((row, i) => (
-              <View key={i} style={{ paddingVertical: 14, borderBottomWidth: i < 2 ? 0.5 : 0, borderBottomColor: COLORS.ink7 }}>
-                <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: row.c, marginBottom: 6 }}>{row.tag}</Text>
-                <Text style={{ fontFamily: F.displayItalic, fontSize: 17, lineHeight: 23, color: COLORS.ink1, letterSpacing: -0.1 }}>{row.body}</Text>
-              </View>
-            ))}
-          </View>
-        </Card>
       </View>
     </>
   );

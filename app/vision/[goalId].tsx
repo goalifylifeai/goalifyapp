@@ -12,7 +12,7 @@ import { useStore } from '../../store';
 import { useVisionAssets } from '../../store/vision';
 import { stageFromProgress, type VisionStage } from '../../lib/vision-stage';
 import { PRO_VISION_AUDIO } from '../../constants/flags';
-import { VISION_CAPTIONS } from '../../constants/data';
+import { SPHERE_VISION_CAPTIONS } from '../../constants/data';
 
 // Ambient audio map — files must exist in assets/audio/ once sourced.
 // Require calls are guarded so a missing file doesn't crash a non-Pro build.
@@ -32,7 +32,7 @@ export default function VisionFilmScreen() {
   const { getSignedUrl, getAsset } = useVisionAssets();
 
   const goal = state.goals.find(g => g.id === goalId);
-  const caption = VISION_CAPTIONS[goalId ?? ''] ?? '';
+  const caption = goal ? SPHERE_VISION_CAPTIONS[goal.sphere] : '';
 
   const goalProgress = goal?.progress ?? 0;
   const defaultStage = stageFromProgress(goalProgress);

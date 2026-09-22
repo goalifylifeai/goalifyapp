@@ -3,7 +3,7 @@ import { ScrollView, View, Text, TouchableOpacity, TextInput, Animated } from 'r
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
-import { SPHERE_LIST, levelFromXp, computeSphereData, computeOverallScore } from '../../constants/data';
+import { SPHERE_LIST, levelForGoals, computeSphereData, computeOverallScore, affirmationFor } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Ring, Bar, Check, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
 import { useFutureSelf } from '../../store/future-self';
@@ -11,12 +11,26 @@ import { useDailyRitual } from '../../store/daily-ritual';
 import { useProfile } from '../../store/profile';
 import type { SphereId } from '../../constants/theme';
 import { newId } from '../../lib/id';
+import { localDateISO } from '../../lib/date';
 
 function formatToday() {
   const d = new Date();
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+
+function lastNDates(n: number): string[] {
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (n - 1 - i));
+    return localDateISO(d);
+  });
 }
 
 function formatNextHour() {
@@ -30,7 +44,8 @@ export default function TodayScreen() {
   const { profile } = useProfile();
   const { state, dispatch } = useStore();
   const { originalLetter } = useFutureSelf();
-  const { intention, isMorningDone, isEveningDone, streak, toggleRitualAction } = useDailyRitual();
+  const { intention, isMorningDone, isEveningDone, streak, activeDates, toggleRitualAction } = useDailyRitual();
+  const activeSet = new Set(activeDates);
   const router = useRouter();
 
   const ritualActions = intention?.actions ?? [];
@@ -49,7 +64,7 @@ export default function TodayScreen() {
   const sphereData = computeSphereData(state.goals);
   const overall = computeOverallScore(sphereData);
 
-  const lvl = levelFromXp(overall * 50); // Arbitrary XP calculation based on progress
+  const lvl = levelForGoals(state.goals);
   
   // Only compare spheres the user has actually started (has a goal in) —
   // an empty sphere isn't "holding you back", it just hasn't been touched yet.
@@ -124,7 +139,7 @@ export default function TodayScreen() {
           {formatToday()}
         </Text>
         <Text style={{ fontFamily: F.displayItalic, fontSize: 42, color: COLORS.ink1, letterSpacing: -0.8, lineHeight: 52, marginTop: 8, marginBottom: 16 }}>
-          Good morning, {profile?.display_name ?? 'there'}.
+          {greeting()}, {profile?.display_name ?? 'there'}.
         </Text>
         <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink3, lineHeight: 21 }}>
           You've completed{' '}
@@ -258,11 +273,11 @@ export default function TodayScreen() {
               <Text style={{ fontFamily: F.mono, fontSize: 13, color: COLORS.ink3, marginLeft: 4 }}>days</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 3, marginTop: 10 }}>
-              {Array.from({ length: 14 }).map((_, i) => (
-                <View key={i} style={{
+              {lastNDates(14).map(d => (
+                <View key={d} style={{
                   flex: 1, height: 10, borderRadius: 2,
                   backgroundColor: COLORS.ink1,
-                  opacity: i < 13 ? 0.4 + (i / 13) * 0.6 : 0.12,
+                  opacity: activeSet.has(d) ? 1 : 0.12,
                 }} />
               ))}
             </View>
@@ -297,7 +312,7 @@ export default function TodayScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
                 <Text style={{ fontFamily: F.display, fontSize: 30, lineHeight: 22, color: s.accent }}>"</Text>
                 <Text style={{ fontFamily: F.displayItalic, fontSize: 16, lineHeight: 22, color: COLORS.ink1, flex: 1, letterSpacing: -0.1 }}>
-                  Keep moving forward.
+                  {affirmationFor(g.id, g.sphere)}
                 </Text>
               </View>
             </LinearGradient>
