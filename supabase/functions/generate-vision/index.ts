@@ -57,6 +57,9 @@ function seedFromGoalId(goalId: string): number {
 }
 
 const REGEN_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+// Max images generated per user per UTC day (4 stages per goal → 6 goals).
+// Enforced via consume_ai_quota (migration 0016); idempotent hits don't count.
+const DAILY_IMAGE_LIMIT = 24;
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -94,12 +97,25 @@ Deno.serve(async (req: Request) => {
     regen_stage?: VisionStage;
   };
 
-  const { goal_id, sphere, regen = false, regen_stage } = body;
-  if (!goal_id || !sphere) {
-    return new Response(JSON.stringify({ error: 'goal_id and sphere required' }), { status: 400 });
+  const { goal_id, regen = false, regen_stage } = body;
+  if (!goal_id) {
+    return new Response(JSON.stringify({ error: 'goal_id required' }), { status: 400 });
   }
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // Only generate for a goal the caller owns; take the sphere from the row,
+  // not the request, so the client can't fan out arbitrary generations.
+  const { data: goalRow } = await adminClient
+    .from('goals')
+    .select('sphere')
+    .eq('id', goal_id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!goalRow) {
+    return new Response(JSON.stringify({ error: 'goal not found' }), { status: 404 });
+  }
+  const sphere = goalRow.sphere as SphereId;
   const seed = seedFromGoalId(goal_id);
   const stages: VisionStage[] = regen && regen_stage !== undefined ? [regen_stage] : [0, 1, 2, 3];
 
@@ -135,6 +151,14 @@ Deno.serve(async (req: Request) => {
         results.push({ ...(existingRow ?? {}), error: 'regen_rate_limited' });
         continue;
       }
+    }
+
+    const { data: allowed, error: quotaErr } = await adminClient.rpc('consume_ai_quota', {
+      p_user_id: user.id, p_kind: 'vision:image', p_limit: DAILY_IMAGE_LIMIT,
+    });
+    if (quotaErr || allowed !== true) {
+      results.push({ goal_id, stage, status: 'pending', ...(existingRow ?? {}), error: 'daily_limit' });
+      continue;
     }
 
     // Mark as generating.

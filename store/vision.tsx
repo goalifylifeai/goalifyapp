@@ -128,7 +128,19 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
       .invoke('generate-vision', { body: { goal_id: goalId, goal_title: goalTitle, sphere } })
       .then(({ data, error }) => {
         generating.current.delete(goalId);
-        if (error || !data) return;
+        if (error || !data) {
+          // e.g. the goal hasn't synced to the server yet (404). Drop the local
+          // placeholders after a pause so the banner requests generation again.
+          setTimeout(() => setAssets(prev => {
+            const next = { ...prev };
+            for (const s of stages) {
+              const k = assetKey(goalId, s);
+              if (next[k]?.status === 'pending' && !next[k]?.id) delete next[k];
+            }
+            return next;
+          }), 15_000);
+          return;
+        }
         // Merge returned assets into state.
         setAssets(prev => {
           const next = { ...prev };

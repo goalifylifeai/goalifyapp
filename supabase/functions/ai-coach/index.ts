@@ -4,11 +4,31 @@
 // an LLM via the Vercel AI Gateway to reason over it. Insights and weekly
 // reflection are cached in `coach_insights`; chat replies are stateless.
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions';
 const MODEL = 'anthropic/claude-sonnet-5';
 const CACHE_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
+// `force` can only bypass a cache entry at least this old, so a client can't
+// loop regenerations.
+const FORCE_MIN_AGE_MS = 15 * 60 * 1000;
+const MAX_CHAT_MESSAGE_CHARS = 1000;
+
+// Daily (UTC) LLM-call caps per user, enforced via consume_ai_quota (0016).
+// Cache hits don't count.
+const DAILY_LIMITS: Record<Mode, number> = {
+  chat: 20,
+  insights: 6,
+  weekly: 4,
+  'nudge-streak': 2,
+  'nudge-sentiment': 3,
+};
+
+const CORS_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS });
+}
 
 type Mode = 'insights' | 'weekly' | 'chat' | 'nudge-streak' | 'nudge-sentiment';
 
@@ -18,7 +38,19 @@ function daysAgoISO(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function callGateway(apiKey: string, system: string, user: string): Promise<string> {
+// Fails closed: if the quota can't be checked, the paid call doesn't happen.
+async function consumeQuota(admin: SupabaseClient, userId: string, mode: Mode): Promise<boolean> {
+  const { data, error } = await admin.rpc('consume_ai_quota', {
+    p_user_id: userId, p_kind: `coach:${mode}`, p_limit: DAILY_LIMITS[mode],
+  });
+  if (error) {
+    console.error('consume_ai_quota failed', error.message);
+    return false;
+  }
+  return data === true;
+}
+
+async function callGateway(apiKey: string, system: string, user: string, maxTokens = 1200): Promise<string> {
   const res = await fetch(GATEWAY_URL, {
     method: 'POST',
     headers: {
@@ -28,7 +60,7 @@ async function callGateway(apiKey: string, system: string, user: string): Promis
     body: JSON.stringify({
       model: MODEL,
       temperature: 0.6,
-      max_tokens: 1200,
+      max_tokens: maxTokens,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -79,24 +111,31 @@ Deno.serve(async (req: Request) => {
 
   const body = await req.json() as { mode: Mode; message?: string; force?: boolean };
   const { mode, message, force = false } = body;
-  if (!mode) return new Response(JSON.stringify({ error: 'mode required' }), { status: 400 });
+  if (!mode || !Object.hasOwn(DAILY_LIMITS, mode)) return json({ error: 'valid mode required' }, 400);
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-  // Serve cached content for insights/weekly if fresh enough.
+  if (mode === 'chat') {
+    if (!message?.trim()) return json({ error: 'message required' }, 400);
+    if (message.length > MAX_CHAT_MESSAGE_CHARS) {
+      return json({ error: 'message_too_long', message: `Keep questions under ${MAX_CHAT_MESSAGE_CHARS} characters.` }, 400);
+    }
+  }
+
+  // Serve cached content for insights/weekly if fresh enough, and fall back to
+  // it (however old) once the daily generation quota is spent.
   if (mode === 'insights' || mode === 'weekly') {
-    if (!force) {
-      const { data: cached } = await adminClient
-        .from('coach_insights')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('kind', mode)
-        .maybeSingle();
-      if (cached && Date.now() - new Date(cached.generated_at as string).getTime() < CACHE_COOLDOWN_MS) {
-        return new Response(JSON.stringify(cached), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
-      }
+    const { data: cached } = await adminClient
+      .from('coach_insights')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('kind', mode)
+      .maybeSingle();
+    const age = cached ? Date.now() - new Date(cached.generated_at as string).getTime() : Infinity;
+    const minAge = force ? FORCE_MIN_AGE_MS : CACHE_COOLDOWN_MS;
+    if (cached && age < minAge) return json(cached);
+    if (!(await consumeQuota(adminClient, user.id, mode))) {
+      return cached ? json(cached) : json({ error: 'rate_limited', message: 'Your coach has done enough thinking for today. Check back tomorrow.' }, 429);
     }
   }
 
@@ -132,13 +171,16 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (mode === 'chat') {
-      if (!message?.trim()) return new Response(JSON.stringify({ error: 'message required' }), { status: 400 });
+      if (!(await consumeQuota(adminClient, user.id, mode))) {
+        return json({ error: 'rate_limited', message: `You've used today's ${DAILY_LIMITS.chat} coach messages. Your coach will be back tomorrow.` }, 429);
+      }
       const chatSystem = system.replace('Respond with ONLY valid JSON, no prose outside the JSON, no markdown fences.',
         'Respond with a single short, warm, specific paragraph (2-4 sentences) as plain text, not JSON.');
       const reply = await callGateway(
         AI_GATEWAY_API_KEY,
         chatSystem,
-        `User's data:\n${JSON.stringify(context)}\n\nUser's question: ${message.trim()}`,
+        `User's data:\n${JSON.stringify(context)}\n\nUser's question: ${message!.trim()}`,
+        400,
       );
       return new Response(JSON.stringify({ reply: reply.trim() }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -187,10 +229,8 @@ Deno.serve(async (req: Request) => {
         cursor = d.toISOString().slice(0, 10);
       }
 
-      if (streak === 0) {
-        return new Response(JSON.stringify({ shouldNudge: false }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+      if (streak === 0 || !(await consumeQuota(adminClient, user.id, mode))) {
+        return json({ shouldNudge: false });
       }
 
       const prompt = `The user has a ${streak}-day streak of showing up for their daily ritual, and has not yet completed today's must-do action. Return JSON: { "title": string (max 40 chars), "body": string (max 100 chars) } — a warm, specific, non-guilt-tripping evening nudge that mentions the streak and encourages finishing today's must-do.`;
@@ -211,10 +251,8 @@ Deno.serve(async (req: Request) => {
         && recent.slice(0, 3).every((entry, i, arr) => i === 0 || entry.sentiment <= arr[i - 1].sentiment)
         && recent[0].sentiment < -0.1;
 
-      if (!trendingDown) {
-        return new Response(JSON.stringify({ shouldNudge: false }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+      if (!trendingDown || !(await consumeQuota(adminClient, user.id, mode))) {
+        return json({ shouldNudge: false });
       }
 
       const prompt = `The user's last 3 journal entries have trended toward lower sentiment (most recent first): ${JSON.stringify(recent.slice(0, 3))}. Return JSON: { "title": string (max 40 chars), "body": string (max 100 chars) } — a gentle, non-clinical check-in nudge. Never diagnose or use clinical language; just invite them to check in.`;
