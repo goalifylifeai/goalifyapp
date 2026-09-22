@@ -51,6 +51,7 @@ supabase/.temp
 
 # test output
 /test-results
+/coverage
 
 # OAuth client secrets
 client_secret_*.json
