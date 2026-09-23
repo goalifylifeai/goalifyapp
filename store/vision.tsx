@@ -12,7 +12,6 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './auth';
 import type { SphereId } from '../constants/theme';
 import { FINAL_STAGE, type VisionStage } from '../lib/vision-stage';
-import { PRO_VISION_REGEN } from '../constants/flags';
 
 export type VisionAssetStatus = 'pending' | 'generating' | 'ready' | 'error';
 
@@ -182,8 +181,10 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, [user, assets]);
 
+  // Cooldown only. Whether the user may regenerate at all (Beyond) is decided
+  // by the UI (FilmOverlay opens the paywall on Free) and enforced by the server.
   const canRegenAsset = (asset: VisionAsset | undefined): boolean => {
-    if (!asset || !PRO_VISION_REGEN) return false;
+    if (!asset) return false;
     if (!asset.last_regen_at) return true;
     return Date.now() - new Date(asset.last_regen_at).getTime() > REGEN_COOLDOWN_MS;
   };
