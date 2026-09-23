@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
-import { COLORS, SPHERE_COLORS } from '../../constants/theme';
+import { COLORS, SPHERE_COLORS, type SphereId } from '../../constants/theme';
 import { F } from '../../components/ui';
 import { FilmOverlay } from '../../components/vision/FilmOverlay';
 import { useStore } from '../../store';
@@ -14,13 +14,14 @@ import { FINAL_STAGE } from '../../lib/vision-stage';
 import { PRO_VISION_AUDIO } from '../../constants/flags';
 import { SPHERE_VISION_CAPTIONS } from '../../constants/data';
 
-// Ambient audio map — files must exist in assets/audio/ once sourced.
-// Require calls are guarded so a missing file doesn't crash a non-Pro build.
-const AMBIENT: Partial<Record<string, number>> = {
-  // finance:       require('../../assets/audio/ambient_finance.m4a'),
-  // health:        require('../../assets/audio/ambient_health.m4a'),
-  // career:        require('../../assets/audio/ambient_career.m4a'),
-  // relationships: require('../../assets/audio/ambient_relationships.m4a'),
+// Sound cue per life area, played once when the vision opens (Beyond only).
+// Clips are cropped, faded and levelled to ~-18 LUFS so none is louder than
+// another; sources are listed in assets/audio/SOURCES.md.
+const VISION_SOUND: Record<SphereId, number> = {
+  finance:       require('../../assets/audio/vision_finance.m4a'),       // cash register, 3s
+  health:        require('../../assets/audio/vision_health.m4a'),        // bells, 6.5s
+  career:        require('../../assets/audio/vision_career.m4a'),        // orchestral swell, 2.7s
+  relationships: require('../../assets/audio/vision_relationships.m4a'), // cinematic music, 30s
 };
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -49,14 +50,13 @@ export default function VisionFilmScreen() {
     }
   }, [signedUrl, imageAnim]);
 
-  // Ambient audio (Pro only, audio files not yet bundled — guarded).
+  // Sound cue (Beyond only): plays once, stops if the user closes the vision.
   useEffect(() => {
     if (!PRO_VISION_AUDIO || !goal) return;
-    const audioSource = AMBIENT[goal.sphere];
-    if (!audioSource) return;
+    const audioSource = VISION_SOUND[goal.sphere];
     let sound: import('expo-av').Audio.Sound | null = null;
     import('expo-av').then(({ Audio }) => {
-      Audio.Sound.createAsync(audioSource, { isLooping: true, volume: 0.25 })
+      Audio.Sound.createAsync(audioSource, { isLooping: false, volume: 0.6 })
         .then(({ sound: s }) => { sound = s; s.playAsync(); })
         .catch(() => {});
     }).catch(() => {});
