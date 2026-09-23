@@ -41,6 +41,8 @@ const SIGNED_URL_REFRESH_BUFFER_MS = 5 * 60 * 1000; // refresh 5 min before expi
 const REGEN_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 type VisionContextValue = {
+  /** True once the user's saved images have been fetched (or the fetch failed). */
+  assetsLoaded: boolean;
   getAsset: (goalId: string, stage: VisionStage) => VisionAsset | undefined;
   getSignedUrl: (goalId: string, stage: VisionStage) => string | undefined;
   requestGeneration: (goalId: string, goalTitle: string, sphere: SphereId) => void;
@@ -57,14 +59,18 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [assets, setAssets] = useState<AssetMap>({});
   const [urls, setUrls] = useState<UrlMap>({});
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
   const generating = useRef<Set<string>>(new Set()); // goalIds currently generating
 
   const fetchAllAssets = useCallback(async () => {
-    if (!user) { setAssets({}); return; }
+    if (!user) { setAssets({}); setAssetsLoaded(false); return; }
     const { data, error } = await supabase
       .from('vision_assets')
       .select('*')
       .eq('user_id', user.id);
+    // Loaded even on error: generation is idempotent server-side, so a banner
+    // asking again is harmless, while never asking would leave it blank.
+    setAssetsLoaded(true);
     if (error || !data) return;
     const map: AssetMap = {};
     for (const row of data as VisionAsset[]) {
@@ -189,13 +195,14 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo<VisionContextValue>(() => ({
+    assetsLoaded,
     getAsset: (goalId, stage) => assets[assetKey(goalId, stage)],
     getSignedUrl: (goalId, stage) => urls[assetKey(goalId, stage)]?.url,
     requestGeneration,
     requestRegen,
     canRegen: (goalId, stage) => canRegenAsset(assets[assetKey(goalId, stage)]),
     isGenerating: (goalId) => generating.current.has(goalId),
-  }), [assets, urls, requestGeneration, requestRegen]);
+  }), [assetsLoaded, assets, urls, requestGeneration, requestRegen]);
 
   return <VisionContext.Provider value={value}>{children}</VisionContext.Provider>;
 }

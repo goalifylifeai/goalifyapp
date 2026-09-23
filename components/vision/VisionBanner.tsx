@@ -19,15 +19,15 @@ type Props = {
 };
 
 export function VisionBanner({ goalId, goalTitle, sphere, caption, fallbackColors, onPress }: Props) {
-  const { getAsset, getSignedUrl, requestGeneration, isGenerating } = useVisionAssets();
+  const { assetsLoaded, getAsset, getSignedUrl, requestGeneration, isGenerating } = useVisionAssets();
   const stage = FINAL_STAGE;
   const asset = getAsset(goalId, stage);
   const signedUrl = getSignedUrl(goalId, stage);
 
-  // Fire-and-forget generation on first render if no asset exists.
+  // Generate once the saved images have loaded and this goal still has none.
   useEffect(() => {
-    if (!asset) requestGeneration(goalId, goalTitle, sphere);
-  }, [goalId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (assetsLoaded && !asset) requestGeneration(goalId, goalTitle, sphere);
+  }, [goalId, assetsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const isLoadingImage = !signedUrl && (asset?.status === 'pending' || asset?.status === 'generating' || isGenerating(goalId));
