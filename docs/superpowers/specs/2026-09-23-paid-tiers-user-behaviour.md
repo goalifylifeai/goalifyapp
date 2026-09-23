@@ -115,9 +115,8 @@ Every limit below is enforced **on the server** (`supabase/functions/*`, migrati
 - No ads, no blocking pop-ups, no lock icons on core features.
 - No countdowns outside the trial.
 
-### 2.5 Cost of a Free user (Gemini 3 Flash)
-- Maximum: **~$0.10/month** (the 10 lifetime chats land in the first month; ~$0.06/month after that). Typical: a few cents.
-- On Sonnet 5, the current model: ~$0.37/month maximum.
+### 2.5 Cost of a Free user (Gemini 3.1 Flash-Lite)
+- Maximum: **~$0.08/month** (includes the 10 lifetime chats, which land in the first month). Typical: a few cents.
 
 ---
 
@@ -149,16 +148,16 @@ Launch with what's already built, and don't hold up launch for the spec'd extras
 
 Add these as "new in Beyond" updates after launch, which also helps retention: ambient audio, vision from goal titles, AI ritual actions, branded share card.
 
-### 3.2 Cost of a Beyond user (Gemini 3 Flash)
+### 3.2 Cost of a Beyond user (Gemini 3.1 Flash-Lite)
 | | Per month |
 |---|---|
-| Maximum (every limit used) | **~$0.83** |
+| Maximum (every limit used) | **~$0.46** |
 | Revenue after 15% store fee | **$3.39** |
-| Margin at maximum usage | **~75%** |
+| Margin at maximum usage | **~87%** |
 
-The coach runs on **Gemini 3 Flash** (decision D4). On Sonnet 5 the maximum would be ~$2.87, a ~15% margin.
+The coach calls **`gemini-3.1-flash-lite` directly through Google's Gemini API** (decision D4), on a billing-enabled Google Cloud project under the Goalify account. For comparison: `gemini-3.8-flash` would be ~$1.13 (and ~$2.18 after Google's 1 Jan 2027 price rise); Sonnet 5 ~$2.87.
 
-A 7-day trial user costs at most ~$0.65 (140 chats + 30 images), typically ~$0.10. With a store trial, a user who cancels costs this amount and pays nothing.
+A 7-day trial user costs at most ~$0.37 (140 chats + 30 images), typically a few cents. With a store trial, a user who cancels costs this amount and pays nothing.
 
 ---
 
@@ -221,7 +220,7 @@ Every entry point opens the **same paywall** with a `source` tag, so you can mea
 | Beyond → Free with >10 images already this month | Existing images stay; only new generation is capped |
 | Beyond → Free with coach insights generated today | They stay visible; the next refresh follows Free timing (10-day cache) |
 | Reinstall / new device | Plan follows the account (server) and the store account (Restore purchases) |
-| Same person tries to get a second trial | Stores allow one trial per store account (Apple ID / Google account), so a new Goalify account on the same store account isn't eligible. **Cross-channel gap:** someone could trial on the app store and again via Stripe on the web. Use RevenueCat's eligibility info to show "Subscribe" instead of a trial to anyone who has already had one, on any channel. Worst-case cost of an abused trial is ~$0.65 |
+| Same person tries to get a second trial | Stores allow one trial per store account (Apple ID / Google account), so a new Goalify account on the same store account isn't eligible. **Cross-channel gap:** someone could trial on the app store and again via Stripe on the web. Use RevenueCat's eligibility info to show "Subscribe" instead of a trial to anyone who has already had one, on any channel. Worst-case cost of an abused trial is ~$0.37 |
 | User starts a trial, then deletes the app | The store still charges on day 8 unless they cancel through the store. The day-5 reminder (1.2) covers this |
 | User subscribes on iOS, then signs in on Android or web | Beyond everywhere (same RevenueCat App User ID). Manage/cancel only through the store they paid with; Profile should say which one |
 | Counter timezone | Limits reset at 00:00 **UTC**, not local midnight. Copy says "tomorrow" / "on the 1st", which is close enough |
@@ -236,6 +235,6 @@ Every entry point opens the **same paywall** with a `source` tag, so you can mea
 | D1 | Trial type | ✅ **Decided:** 7-day store free trial through RevenueCat (card on file, charged $3.99 on day 8 unless cancelled) on Apple, Google and Stripe |
 | D2 | Annual plan price | e.g. **$29.99/year** (~37% off $3.99 × 12) |
 | D3 | Circles on Free | ✅ **Decided:** unlimited |
-| D4 | Coach model | ✅ **Decided:** Gemini 3 Flash |
+| D4 | Coach model | ✅ **Decided:** `gemini-3.1-flash-lite`, called directly through Google's Gemini API (key `GEMINI_API_KEY`) |
 | D5 | Launch scope for Beyond | **Built features only** (3.1); spec'd extras as later updates |
 | D6 | Are Free users' 10 coach messages a lifetime allowance, even after years? | Yes, as specified. Could add "+5 each month" later if Free engagement drops |
