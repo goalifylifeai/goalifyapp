@@ -1,5 +1,6 @@
 // Supabase Edge Function (Deno runtime)
-// Generates 4 vision images per goal via fal.ai and stores them in Supabase Storage.
+// Generates one vision image per goal (the final "arriving" stage) via fal.ai
+// and stores it in Supabase Storage.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -57,9 +58,13 @@ function seedFromGoalId(goalId: string): number {
 }
 
 const REGEN_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
-// Max images generated per user per UTC day (4 stages per goal → 6 goals).
+// Only the final stage is generated — one image per goal. SCENES keeps the
+// earlier stages for reference/rows generated before this change.
+const FINAL_STAGE: VisionStage = 3;
+
+// Max images generated per user per UTC day (one per goal → 6 goals).
 // Enforced via consume_ai_quota (migration 0016); idempotent hits don't count.
-const DAILY_IMAGE_LIMIT = 24;
+const DAILY_IMAGE_LIMIT = 6;
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -94,10 +99,9 @@ Deno.serve(async (req: Request) => {
     goal_title: string;
     sphere: SphereId;
     regen?: boolean;
-    regen_stage?: VisionStage;
   };
 
-  const { goal_id, regen = false, regen_stage } = body;
+  const { goal_id, regen = false } = body;
   if (!goal_id) {
     return new Response(JSON.stringify({ error: 'goal_id required' }), { status: 400 });
   }
@@ -117,7 +121,7 @@ Deno.serve(async (req: Request) => {
   }
   const sphere = goalRow.sphere as SphereId;
   const seed = seedFromGoalId(goal_id);
-  const stages: VisionStage[] = regen && regen_stage !== undefined ? [regen_stage] : [0, 1, 2, 3];
+  const stages: VisionStage[] = [FINAL_STAGE];
 
   // Load existing rows to check idempotency and rate limits.
   const { data: existing } = await adminClient

@@ -254,7 +254,6 @@ function VisionBoard() {
               goalId={g.id}
               goalTitle={g.title}
               sphere={g.sphere}
-              progress={g.progress}
               caption={SPHERE_VISION_CAPTIONS[g.sphere]}
               fallbackColors={SPHERE_VISION_TONES[g.sphere]}
               onPress={() => router.push(`/vision/${g.id}` as any)}

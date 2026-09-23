@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View, Image, TouchableOpacity, Text, StyleSheet, Dimensions,
   StatusBar, Animated,
@@ -10,7 +10,7 @@ import { F } from '../../components/ui';
 import { FilmOverlay } from '../../components/vision/FilmOverlay';
 import { useStore } from '../../store';
 import { useVisionAssets } from '../../store/vision';
-import { stageFromProgress, type VisionStage } from '../../lib/vision-stage';
+import { FINAL_STAGE } from '../../lib/vision-stage';
 import { PRO_VISION_AUDIO } from '../../constants/flags';
 import { SPHERE_VISION_CAPTIONS } from '../../constants/data';
 
@@ -34,17 +34,13 @@ export default function VisionFilmScreen() {
   const goal = state.goals.find(g => g.id === goalId);
   const caption = goal ? SPHERE_VISION_CAPTIONS[goal.sphere] : '';
 
-  const goalProgress = goal?.progress ?? 0;
-  const defaultStage = stageFromProgress(goalProgress);
-  const [selectedStage, setSelectedStage] = useState<VisionStage>(defaultStage);
-
-  const signedUrl = getSignedUrl(goalId ?? '', selectedStage);
-  const asset = getAsset(goalId ?? '', selectedStage);
+  const signedUrl = getSignedUrl(goalId ?? '', FINAL_STAGE);
+  const asset = getAsset(goalId ?? '', FINAL_STAGE);
 
   const imageAnim = useRef(new Animated.Value(0)).current;
   const prevSignedUrl = useRef<string | undefined>(undefined);
 
-  // Cross-fade when signed URL changes (new stage or regen complete).
+  // Cross-fade when signed URL changes (first load or regen complete).
   useEffect(() => {
     if (signedUrl && signedUrl !== prevSignedUrl.current) {
       imageAnim.setValue(0);
@@ -111,14 +107,13 @@ export default function VisionFilmScreen() {
         </Svg>
       </TouchableOpacity>
 
-      {/* Overlay: stage dots + caption */}
+      {/* Overlay: progress + caption */}
       <FilmOverlay
         goalId={goal.id}
         goalTitle={goal.title}
         sphere={goal.sphere}
         caption={caption}
-        currentStage={selectedStage}
-        onStageSelect={setSelectedStage}
+        progress={goal.progress}
       />
 
       {/* Pro audio lock badge (if audio not active) */}

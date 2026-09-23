@@ -341,7 +341,6 @@ export default function GoalsScreen() {
                 goalId={g.id}
                 goalTitle={g.title}
                 sphere={g.sphere}
-                progress={g.progress}
                 caption={caption}
                 fallbackColors={tone}
                 onPress={() => router.push(`/vision/${g.id}` as any)}

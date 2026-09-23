@@ -11,7 +11,7 @@ import React, {
 import { supabase } from '../lib/supabase';
 import { useAuth } from './auth';
 import type { SphereId } from '../constants/theme';
-import { type VisionStage } from '../lib/vision-stage';
+import { FINAL_STAGE, type VisionStage } from '../lib/vision-stage';
 import { PRO_VISION_REGEN } from '../constants/flags';
 
 export type VisionAssetStatus = 'pending' | 'generating' | 'ready' | 'error';
@@ -101,8 +101,8 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
   const requestGeneration = useCallback((goalId: string, goalTitle: string, sphere: SphereId) => {
     if (!user) return;
     if (generating.current.has(goalId)) return;
-    // Check if all 4 stages are already ready — skip if so.
-    const stages: VisionStage[] = [0, 1, 2, 3];
+    // One image per goal (the final stage) — skip if it's already ready.
+    const stages: VisionStage[] = [FINAL_STAGE];
     const allReady = stages.every(s => assets[assetKey(goalId, s)]?.status === 'ready');
     if (allReady) return;
 
@@ -166,7 +166,7 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
     }));
 
     supabase.functions
-      .invoke('generate-vision', { body: { goal_id: goalId, goal_title: goalTitle, sphere, regen: true, regen_stage: stage } })
+      .invoke('generate-vision', { body: { goal_id: goalId, goal_title: goalTitle, sphere, regen: true } })
       .then(({ data, error }) => {
         if (error || !data) return;
         setAssets(prev => {
