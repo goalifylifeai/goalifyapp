@@ -42,9 +42,16 @@ export async function dequeue(id: string): Promise<void> {
   await saveQueue(queue.filter(item => item.id !== id));
 }
 
+// Bumped by clearQueue so a drain that was already running doesn't write its
+// failed items back afterwards (e.g. a deleted account's journal text).
+let generation = 0;
+
 export async function clearQueue(): Promise<void> {
+  generation++;
   await AsyncStorage.removeItem(QUEUE_KEY);
 }
+
+const itemKey = (i: QueueItem) => `${i.id}|${i.created_at}`;
 
 const MAX_RETRIES = 5;
 
@@ -52,6 +59,7 @@ export async function drainQueue(
   syncFn: (item: QueueItem) => Promise<void>,
   ownerId?: string,
 ): Promise<void> {
+  const startGeneration = generation;
   const queue = await getQueue();
   const remaining: QueueItem[] = [];
 
@@ -74,5 +82,10 @@ export async function drainQueue(
     }
   }
 
-  await saveQueue(remaining);
+  // Merge with what's stored now instead of overwriting it: keep items
+  // enqueued while this drain ran, and drop our leftovers if the queue was
+  // cleared in the meantime.
+  const seen = new Set(queue.map(itemKey));
+  const added = (await getQueue()).filter(i => !seen.has(itemKey(i)));
+  await saveQueue(generation === startGeneration ? [...remaining, ...added] : added);
 }
