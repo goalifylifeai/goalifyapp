@@ -8,7 +8,13 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 
 const GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions';
 const MODEL = 'anthropic/claude-sonnet-5';
-const CACHE_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
+// How long a generated result is served from coach_insights before the next
+// app open regenerates it. The app requests both on every launch, so these
+// windows are what bound the automatic LLM spend.
+const CACHE_TTL_MS: Record<'insights' | 'weekly', number> = {
+  insights: 24 * 60 * 60 * 1000,    // 1 day
+  weekly: 7 * 24 * 60 * 60 * 1000,  // 1 week
+};
 // `force` can only bypass a cache entry at least this old, so a client can't
 // loop regenerations.
 const FORCE_MIN_AGE_MS = 15 * 60 * 1000;
@@ -132,7 +138,7 @@ Deno.serve(async (req: Request) => {
       .eq('kind', mode)
       .maybeSingle();
     const age = cached ? Date.now() - new Date(cached.generated_at as string).getTime() : Infinity;
-    const minAge = force ? FORCE_MIN_AGE_MS : CACHE_COOLDOWN_MS;
+    const minAge = force ? FORCE_MIN_AGE_MS : CACHE_TTL_MS[mode];
     if (cached && age < minAge) return json(cached);
     if (!(await consumeQuota(adminClient, user.id, mode))) {
       return cached ? json(cached) : json({ error: 'rate_limited', message: 'Your coach has done enough thinking for today. Check back tomorrow.' }, 429);
