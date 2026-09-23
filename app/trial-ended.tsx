@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { F } from '../components/ui';
 import { PAID_PLAN_NAME } from '../constants/brand';
-import { openPaywall } from '../lib/paywall';
 
 const CHANGES = [
   'Coach chat: 10 messages in total',
@@ -27,7 +26,7 @@ export default function TrialEndedScreen() {
 
       <TouchableOpacity
         style={s.cta}
-        onPress={() => { router.back(); openPaywall('trial_ended'); }}
+        onPress={() => router.replace({ pathname: '/paywall', params: { source: 'trial_ended' } })}
       >
         <Text style={s.ctaText}>Resubscribe</Text>
       </TouchableOpacity>
