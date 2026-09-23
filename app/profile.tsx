@@ -16,6 +16,7 @@ import { useProfile } from '../store/profile';
 import { usePlan } from '../store/plan';
 import { deleteAccountMessage } from '../lib/plan-state';
 import { useStore } from '../store';
+import { completedGoals } from '../lib/goals';
 import { useDailyRitual } from '../store/daily-ritual';
 import { syncHabitsToCalendar, removeAllHabitsFromCalendar } from '../lib/calendar';
 import { getNotificationTimes, saveNotificationTimes, DEFAULT_NOTIFICATION_TIMES } from '../lib/notification-prefs';
@@ -32,7 +33,7 @@ export default function ProfileScreen() {
 
   const { streak } = useDailyRitual();
   const lvl = levelForGoals(state.goals);
-  const goalsDone = state.goals.filter(g => g.sub.length > 0 && g.sub.every(st => st.done)).length;
+  const goalsDone = completedGoals(state.goals).length;
   const [name, setName] = useState(profile?.display_name ?? '');
   const [pronoun, setPronoun] = useState(profile?.pronouns ?? '');
   const [genderAware, setGenderAware] = useState(profile?.gender_aware_coaching ?? true);

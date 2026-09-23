@@ -213,6 +213,37 @@ describe('usePersistentStore — additional characterization', () => {
     expect(fromCalls).toEqual(expect.arrayContaining(['goals', 'goal_subtasks']));
   });
 
+  it('writes completed_at when a goal is marked complete, and clears it on reopen', async () => {
+    const { supabase } = getMocks();
+    const mockUpsert = jest.fn().mockResolvedValue({ error: null });
+    supabase.from.mockReturnValue({
+      upsert: mockUpsert,
+      select: jest.fn(() => ({
+        order: jest.fn().mockResolvedValue({ data: [], error: null }),
+        gte: jest.fn(() => ({ order: jest.fn().mockResolvedValue({ data: [], error: null }) })),
+      })),
+    });
+
+    const { result } = renderHook(() => usePersistentStore());
+    await signIn(result, 'user-complete');
+
+    act(() => {
+      result.current.dispatch({ type: 'ADD_GOAL', goal: baseGoal } as AppAction);
+    });
+    act(() => {
+      result.current.dispatch({ type: 'UPDATE_GOAL', goalId: baseGoal.id, patch: { completedAt: '2026-09-23T09:00:00.000Z' } } as AppAction);
+    });
+    act(() => {
+      result.current.dispatch({ type: 'UPDATE_GOAL', goalId: baseGoal.id, patch: { completedAt: undefined } } as AppAction);
+    });
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    const goalWrites = mockUpsert.mock.calls.map(c => c[0]).filter(p => !Array.isArray(p) && p.id === baseGoal.id);
+    expect(goalWrites.map(p => p.completed_at)).toEqual([null, '2026-09-23T09:00:00.000Z', null]);
+  });
+
   it('enqueues both the goal and its subtasks when ADD_GOAL sync fails', async () => {
     const { supabase, queueMock } = getMocks();
     supabase.from.mockReturnValue({

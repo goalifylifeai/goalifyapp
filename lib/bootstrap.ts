@@ -26,6 +26,7 @@ function toGoal(row: GoalRow, subtasks: GoalSubtaskRow[]): Goal {
     sphere: row.sphere as SphereId,
     title: row.title,
     due: row.due_date ?? '',
+    completedAt: row.completed_at ?? undefined,
     progress,
     sub,
   };

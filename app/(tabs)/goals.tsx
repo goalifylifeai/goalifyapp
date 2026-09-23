@@ -12,6 +12,7 @@ import type { Goal } from '../../store';
 import type { SphereId } from '../../constants/theme';
 import { newId } from '../../lib/id';
 import { localDateISO, formatDisplayDate } from '../../lib/date';
+import { activeGoals, completedGoals } from '../../lib/goals';
 
 export default function GoalsScreen() {
   const { state, dispatch } = useStore();
@@ -31,12 +32,23 @@ export default function GoalsScreen() {
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [habitPromptGoal, setHabitPromptGoal] = useState<Goal | null>(null);
 
-  const filtered = (filter === 'all' ? state.goals : state.goals.filter(g => g.sphere === filter))
-    .filter(g => {
-      const q = query.trim().toLowerCase();
-      if (!q) return true;
-      return g.title.toLowerCase().includes(q) || g.sub.some(s => s.t.toLowerCase().includes(q));
-    });
+  const [showCompleted, setShowCompleted] = useState(false);
+
+  const active = activeGoals(state.goals);
+  const completed = completedGoals(state.goals);
+  const matches = (g: Goal) => {
+    if (filter !== 'all' && g.sphere !== filter) return false;
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return g.title.toLowerCase().includes(q) || g.sub.some(s => s.t.toLowerCase().includes(q));
+  };
+  const filtered = active.filter(matches);
+  const filteredCompleted = completed.filter(matches);
+
+  const markComplete = (g: Goal) =>
+    dispatch({ type: 'UPDATE_GOAL', goalId: g.id, patch: { completedAt: new Date().toISOString() } });
+  const reopen = (g: Goal) =>
+    dispatch({ type: 'UPDATE_GOAL', goalId: g.id, patch: { completedAt: undefined } });
 
   // Initialize form for adding
   const startAdd = () => {
@@ -276,7 +288,7 @@ export default function GoalsScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: COLORS.paper }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
       <View style={{ paddingHorizontal: 22, paddingTop: 8 }}>
         <Text style={{ fontFamily: F.mono, fontSize: 11, letterSpacing: 2.5, textTransform: 'uppercase', color: COLORS.ink3 }}>
-          {state.goals.length} active · 12 completed
+          {active.length} active · {completed.length} completed
         </Text>
         <Text style={{ fontFamily: F.display, fontSize: 44, color: COLORS.ink1, letterSpacing: -0.8, lineHeight: 52, marginTop: 8, marginBottom: 0 }}>
           Goals.
@@ -354,7 +366,10 @@ export default function GoalsScreen() {
                   <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: COLORS.ink3 }}>{s.label}</Text>
                   <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink4 }}>·</Text>
                   <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>Due {formatDisplayDate(g.due)}</Text>
-                  <TouchableOpacity onPress={() => startEdit(g)} style={{ marginLeft: 'auto' }}>
+                  <TouchableOpacity testID={`complete-goal-${g.id}`} onPress={() => markComplete(g)} style={{ marginLeft: 'auto' }}>
+                    <Text style={{ fontFamily: F.mono, fontSize: 9, color: s.deep, letterSpacing: 1 }}>✓ COMPLETE</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => startEdit(g)}>
                     <Text style={{ fontFamily: F.mono, fontSize: 9, color: COLORS.ink4, letterSpacing: 1 }}>EDIT</Text>
                   </TouchableOpacity>
                 </View>
@@ -420,6 +435,39 @@ export default function GoalsScreen() {
           </TouchableOpacity>
         ) : renderGoalForm('New Goal')}
       </View>
+
+      {/* Completed goals */}
+      {filteredCompleted.length > 0 && (
+        <View style={{ paddingHorizontal: 22, paddingTop: 28 }}>
+          <SectionLabel
+            action={showCompleted ? 'Hide' : 'Show'}
+            onAction={() => setShowCompleted(v => !v)}
+          >
+            {`Completed · ${filteredCompleted.length}`}
+          </SectionLabel>
+          {showCompleted && (
+            <View style={{ gap: 8 }}>
+              {filteredCompleted.map(g => {
+                const s = SPHERE_COLORS[g.sphere];
+                return (
+                  <Card key={g.id} pad={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <SphereChip sphere={g.sphere} size={22} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: F.display, fontSize: 17, lineHeight: 21, color: COLORS.ink1 }}>{g.title}</Text>
+                      <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, marginTop: 3 }}>
+                        {s.label} · Completed {formatDisplayDate(localDateISO(new Date(g.completedAt!)))}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => reopen(g)}>
+                      <Text style={{ fontFamily: F.mono, fontSize: 9, color: COLORS.ink4, letterSpacing: 1 }}>REOPEN</Text>
+                    </TouchableOpacity>
+                  </Card>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      )}
     </ScrollView>
     <HabitPromptModal
       visible={!!habitPromptGoal}

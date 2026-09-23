@@ -86,7 +86,7 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
         if (!goal) return;
 
         await check(supabase.from('goals').upsert(
-          { id: goal.id, user_id: userId, sphere: goal.sphere, title: goal.title, due_date: goal.due || null },
+          { id: goal.id, user_id: userId, sphere: goal.sphere, title: goal.title, due_date: goal.due || null, completed_at: goal.completedAt ?? null },
           { onConflict: 'id' },
         ));
         
@@ -187,7 +187,7 @@ function actionToQueueItems(action: AppAction, state: AppState, userId: string):
         id: `goal:${g.id}`,
         table: 'goals',
         operation: 'upsert',
-        payload: { id: g.id, user_id: userId, sphere: g.sphere, title: g.title, due_date: g.due || null },
+        payload: { id: g.id, user_id: userId, sphere: g.sphere, title: g.title, due_date: g.due || null, completed_at: g.completedAt ?? null },
         created_at: now,
         retries: 0,
       });
