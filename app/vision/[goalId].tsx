@@ -12,6 +12,7 @@ import { useStore } from '../../store';
 import { useVisionAssets } from '../../store/vision';
 import { FINAL_STAGE } from '../../lib/vision-stage';
 import { PRO_VISION_AUDIO } from '../../constants/flags';
+import { PAID_PLAN_SHORT } from '../../constants/brand';
 import { SPHERE_VISION_CAPTIONS } from '../../constants/data';
 
 // Sound cue per life area, played once when the vision opens (Beyond only).
@@ -116,10 +117,10 @@ export default function VisionFilmScreen() {
         progress={goal.progress}
       />
 
-      {/* Pro audio lock badge (if audio not active) */}
+      {/* Beyond audio lock badge (if audio not active) */}
       {!PRO_VISION_AUDIO && (
         <View style={s.audioBadge} pointerEvents="none">
-          <Text style={s.audioBadgeText}>♩ Ambient · Pro</Text>
+          <Text style={s.audioBadgeText}>♩ Ambient · {PAID_PLAN_SHORT}</Text>
         </View>
       )}
     </View>
