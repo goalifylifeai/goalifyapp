@@ -1,5 +1,5 @@
 import { stageFromProgress } from '../lib/vision-stage';
-import { buildPrompt, promptHash } from '../lib/vision-prompts';
+import { buildPrompt, promptHash, figureFromProfile } from '../lib/vision-prompts';
 import { seedFromGoalId } from '../lib/vision-seed';
 
 describe('stageFromProgress', () => {
@@ -72,5 +72,56 @@ describe('seedFromGoalId', () => {
     const seed = seedFromGoalId('some-very-long-goal-id-string-1234');
     expect(seed).toBeLessThan(2_147_483_648);
     expect(seed).toBeGreaterThan(0);
+  });
+});
+
+describe('figureFromProfile', () => {
+  it('maps she/he pronouns when gender-aware imagery is on', () => {
+    expect(figureFromProfile('she/her', true)).toBe('woman');
+    expect(figureFromProfile(' She/Her ', true)).toBe('woman');
+    expect(figureFromProfile('he/him', true)).toBe('man');
+    expect(figureFromProfile('He', true)).toBe('man');
+  });
+
+  it('does not read "her/hers" as he', () => {
+    expect(figureFromProfile('her/hers', true)).toBeNull();
+  });
+
+  it('is null for they/them, custom or missing pronouns', () => {
+    expect(figureFromProfile('they/them', true)).toBeNull();
+    expect(figureFromProfile('xe/xem', true)).toBeNull();
+    expect(figureFromProfile(null, true)).toBeNull();
+    expect(figureFromProfile('', true)).toBeNull();
+  });
+
+  it('is null when gender-aware imagery is off', () => {
+    expect(figureFromProfile('she/her', false)).toBeNull();
+    expect(figureFromProfile('he/him', false)).toBeNull();
+  });
+});
+
+describe('buildPrompt with a figure', () => {
+  it('puts a matching person in the final health and career scenes', () => {
+    expect(buildPrompt({ sphere: 'health', stage: 3, figure: 'woman' })).toContain('woman');
+    expect(buildPrompt({ sphere: 'career', stage: 3, figure: 'man' })).toContain('man');
+  });
+
+  it('keeps the people-free scene when there is no figure', () => {
+    const p = buildPrompt({ sphere: 'health', stage: 3, figure: null });
+    expect(p).toContain('running shoes');
+    expect(p).not.toMatch(/\b(woman|man)\b/);
+  });
+
+  it('never adds a person to finance or relationships', () => {
+    expect(buildPrompt({ sphere: 'finance', stage: 3, figure: 'woman' }))
+      .toBe(buildPrompt({ sphere: 'finance', stage: 3, figure: null }));
+    expect(buildPrompt({ sphere: 'relationships', stage: 3, figure: 'man' }))
+      .toBe(buildPrompt({ sphere: 'relationships', stage: 3, figure: null }));
+  });
+
+  it('gives different prompts (so different images) per figure', () => {
+    const w = buildPrompt({ sphere: 'career', stage: 3, figure: 'woman' });
+    const m = buildPrompt({ sphere: 'career', stage: 3, figure: 'man' });
+    expect(promptHash(w)).not.toBe(promptHash(m));
   });
 });

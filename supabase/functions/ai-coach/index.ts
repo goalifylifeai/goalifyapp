@@ -1,16 +1,19 @@
 // Supabase Edge Function (Deno runtime)
 // Generates real, data-grounded coaching content (insights, weekly reflection,
 // chat replies) by loading the caller's own goals/habits/journal and asking
-// an LLM via the Vercel AI Gateway to reason over it. Insights and weekly
+// Gemini (Google's OpenAI-compatible endpoint) to reason over it. Insights and weekly
 // reflection are cached in `coach_insights`; chat replies are stateless.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
+import { json, preflight } from '../_shared/http.ts';
 
-const GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions';
-// Gemini 3 Flash keeps a max-usage Goalify Beyond user at ~$0.83/month against
-// ~$3.39 net revenue (see docs/superpowers/specs/2026-09-23-paid-tiers-user-behaviour.md).
-const MODEL = 'google/gemini-3-flash';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+// Gemini 3.1 Flash-Lite: a max-usage Goalify Beyond user costs ~$0.46/month
+// against ~$3.39 net revenue (see docs/superpowers/specs/2026-09-23-paid-tiers-user-behaviour.md).
+// The key must belong to a billing-enabled project: on Google's free tier,
+// prompts (users' journal entries) can be used for training and human review.
+const MODEL = 'gemini-3.1-flash-lite';
 // How long a generated result is served from coach_insights before the next
 // app open regenerates it. The app requests both on every launch, so these
 // windows are what bound the automatic LLM spend. Free insights are kept for
@@ -43,12 +46,6 @@ const LIMITS: Record<Plan, Record<Mode, Limit[]>> = {
   },
 };
 
-const CORS_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS });
-}
-
 type Mode = 'insights' | 'weekly' | 'chat' | 'nudge-streak' | 'nudge-sentiment';
 
 function daysAgoISO(n: number): string {
@@ -57,8 +54,8 @@ function daysAgoISO(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function callGateway(apiKey: string, system: string, user: string, maxTokens = 1200): Promise<string> {
-  const res = await fetch(GATEWAY_URL, {
+async function callModel(apiKey: string, system: string, user: string, maxTokens = 1200): Promise<string> {
+  const res = await fetch(GEMINI_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -66,6 +63,9 @@ async function callGateway(apiKey: string, system: string, user: string, maxToke
     },
     body: JSON.stringify({
       model: MODEL,
+      // Lowest thinking level, so hidden reasoning can't eat the short
+      // max_tokens budgets (e.g. 400 for chat) and leave the reply empty.
+      reasoning_effort: 'minimal',
       temperature: 0.6,
       max_tokens: maxTokens,
       messages: [
@@ -75,11 +75,11 @@ async function callGateway(apiKey: string, system: string, user: string, maxToke
     }),
   });
   if (!res.ok) {
-    throw new Error(`AI Gateway error ${res.status}: ${await res.text()}`);
+    throw new Error(`Gemini error ${res.status}: ${await res.text()}`);
   }
   const data = await res.json() as { choices?: { message?: { content?: string } }[] };
   const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error('AI Gateway returned no content');
+  if (!text) throw new Error('Gemini returned no content');
   return text;
 }
 
@@ -90,31 +90,25 @@ function extractJson(text: string): unknown {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    });
-  }
+  const pre = preflight(req);
+  if (pre) return pre;
 
-  const AI_GATEWAY_API_KEY = Deno.env.get('AI_GATEWAY_API_KEY');
+  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
   const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-  if (!AI_GATEWAY_API_KEY) {
-    return new Response(JSON.stringify({ error: 'AI_GATEWAY_API_KEY not configured' }), { status: 500 });
+  if (!GEMINI_API_KEY) {
+    return json({ error: 'GEMINI_API_KEY not configured' }, 500);
   }
 
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return new Response('Unauthorized', { status: 401 });
+  if (!authHeader) return json({ error: 'unauthorized' }, 401);
 
   const userClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: { user }, error: authError } = await userClient.auth.getUser();
-  if (authError || !user) return new Response('Unauthorized', { status: 401 });
+  if (authError || !user) return json({ error: 'unauthorized' }, 401);
 
   const body = await req.json() as { mode: Mode; message?: string; force?: boolean };
   const { mode, message, force = false } = body;
@@ -196,24 +190,31 @@ Deno.serve(async (req: Request) => {
       if (blocked) {
         return json({ error: 'rate_limited', message: "You've used this month's 150 coach messages. They reset on the 1st." }, 429);
       }
+      const askedAt = new Date().toISOString();
       const chatSystem = system.replace('Respond with ONLY valid JSON, no prose outside the JSON, no markdown fences.',
         'Respond with a single short, warm, specific paragraph (2-4 sentences) as plain text, not JSON.');
-      const reply = await callGateway(
-        AI_GATEWAY_API_KEY,
+      const reply = await callModel(
+        GEMINI_API_KEY,
         chatSystem,
         `User's data:\n${JSON.stringify(context)}\n\nUser's question: ${message!.trim()}`,
         400,
       );
-      return new Response(JSON.stringify({ reply: reply.trim() }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
+      const replyText = reply.trim();
+      // Save the exchange so history survives restarts. Explicit timestamps
+      // keep question-before-answer order; a failed save never loses the reply.
+      const { error: saveErr } = await adminClient.from('coach_messages').insert([
+        { user_id: user.id, role: 'user', text: message!.trim().slice(0, 4000), created_at: askedAt },
+        { user_id: user.id, role: 'coach', text: replyText.slice(0, 4000), created_at: new Date().toISOString() },
+      ]);
+      if (saveErr) console.error('ai-coach: saving chat failed', saveErr.message);
+      return json({ reply: replyText });
     }
 
     if (mode === 'insights') {
       const prompt = hasAnyData
         ? `User's data:\n${JSON.stringify(context)}\n\nReturn JSON: { "insights": [ { "kind": "pattern"|"nudge"|"win", "title": string, "body": string } ] }. Return 2-4 insights, each grounded in a specific fact from the data.`
         : `The user has no goals, habits, or journal entries yet. Return JSON: { "insights": [ { "kind": "nudge", "title": string, "body": string } ] } with exactly one warm, encouraging insight suggesting they add their first goal or habit.`;
-      const text = await callGateway(AI_GATEWAY_API_KEY, system, prompt);
+      const text = await callModel(GEMINI_API_KEY, system, prompt);
       const parsed = extractJson(text) as { insights: unknown };
 
       const { data: saved } = await adminClient
@@ -222,9 +223,7 @@ Deno.serve(async (req: Request) => {
         .select()
         .single();
 
-      return new Response(JSON.stringify(saved), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
+      return json(saved);
     }
 
     if (mode === 'nudge-streak') {
@@ -235,9 +234,7 @@ Deno.serve(async (req: Request) => {
       ]);
 
       if (todayRow?.must_do_done) {
-        return new Response(JSON.stringify({ shouldNudge: false }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+        return json({ shouldNudge: false });
       }
 
       // Mirrors lib/date.ts's streakFromDates: consecutive active days ending yesterday.
@@ -256,12 +253,10 @@ Deno.serve(async (req: Request) => {
       }
 
       const prompt = `The user has a ${streak}-day streak of showing up for their daily ritual, and has not yet completed today's must-do action. Return JSON: { "title": string (max 40 chars), "body": string (max 100 chars) } — a warm, specific, non-guilt-tripping evening nudge that mentions the streak and encourages finishing today's must-do.`;
-      const text = await callGateway(AI_GATEWAY_API_KEY, system, prompt);
+      const text = await callModel(GEMINI_API_KEY, system, prompt);
       const parsed = extractJson(text) as { title: string; body: string };
 
-      return new Response(JSON.stringify({ shouldNudge: true, ...parsed }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
+      return json({ shouldNudge: true, ...parsed });
     }
 
     if (mode === 'nudge-sentiment') {
@@ -279,19 +274,17 @@ Deno.serve(async (req: Request) => {
       }
 
       const prompt = `The user's last 3 journal entries have trended toward lower sentiment (most recent first): ${JSON.stringify(recent.slice(0, 3))}. Return JSON: { "title": string (max 40 chars), "body": string (max 100 chars) } — a gentle, non-clinical check-in nudge. Never diagnose or use clinical language; just invite them to check in.`;
-      const text = await callGateway(AI_GATEWAY_API_KEY, system, prompt);
+      const text = await callModel(GEMINI_API_KEY, system, prompt);
       const parsed = extractJson(text) as { title: string; body: string };
 
-      return new Response(JSON.stringify({ shouldNudge: true, ...parsed }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
+      return json({ shouldNudge: true, ...parsed });
     }
 
     // mode === 'weekly'
     const prompt = hasAnyData
       ? `User's data (last 30 days):\n${JSON.stringify(context)}\n\nReturn JSON: { "period": string (e.g. "Last 7 days"), "stats": [ { "n": string, "l": string } ] (3 short stat tiles), "quote": string (one reflective sentence in second person, present tense), "wins": [ { "t": string, "s": sphere } ], "challenges": [ { "t": string, "s": sphere } ], "next_step": { "title": string, "when": string } }. sphere must be one of finance, health, career, relationships. Base every item strictly on the data; if there isn't enough for a category, return an empty array for it.`
       : `The user has no data yet. Return JSON: { "period": "This week", "stats": [], "quote": "Your week in review will appear here once you start logging goals, habits, or journal entries.", "wins": [], "challenges": [], "next_step": { "title": "Add your first goal or habit", "when": "Today" } }.`;
-    const text = await callGateway(AI_GATEWAY_API_KEY, system, prompt);
+    const text = await callModel(GEMINI_API_KEY, system, prompt);
     const parsed = extractJson(text);
 
     const { data: saved } = await adminClient
@@ -300,13 +293,10 @@ Deno.serve(async (req: Request) => {
       .select()
       .single();
 
-    return new Response(JSON.stringify(saved), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
+    return json(saved);
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 502,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
+    // Details stay in the logs; the app only needs to know it failed.
+    console.error('ai-coach', mode, (err as Error).message);
+    return json({ error: 'coach_unavailable' }, 502);
   }
 });

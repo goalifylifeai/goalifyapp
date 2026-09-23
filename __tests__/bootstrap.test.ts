@@ -2,6 +2,7 @@
 jest.mock('../lib/supabase', () => {
   const makeQuery = (data: unknown[]) => ({
     select: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
     order: jest.fn().mockResolvedValue({ data, error: null }),
     gte: jest.fn().mockReturnThis(),
   });
@@ -117,6 +118,7 @@ describe('bootstrapUserData', () => {
     const { supabase } = require('../lib/supabase');
     const makeQuery = (data: unknown[]) => ({
       select: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
       order: jest.fn().mockResolvedValue({ data, error: null }),
       gte: jest.fn().mockReturnThis(),
     });
@@ -140,14 +142,41 @@ describe('bootstrapUserData', () => {
     expect(h.reminderMinute).toBe(30);
   });
 
-  it('fires all five queries (parallel fetch)', async () => {
+  it('fires all six queries (parallel fetch)', async () => {
     const { supabase } = require('../lib/supabase');
     await bootstrapUserData();
-    // supabase.from should be called once for each of the 5 tables
+    // supabase.from should be called once for each of the 6 tables
     expect(supabase.from).toHaveBeenCalledWith('goals');
     expect(supabase.from).toHaveBeenCalledWith('goal_subtasks');
     expect(supabase.from).toHaveBeenCalledWith('habits');
     expect(supabase.from).toHaveBeenCalledWith('habit_logs');
     expect(supabase.from).toHaveBeenCalledWith('journal_entries');
+    expect(supabase.from).toHaveBeenCalledWith('coach_messages');
+  });
+});
+
+// ── coach chat history ─────────────────────────────────────────────
+describe('bootstrapUserData coach history', () => {
+  it('loads saved coach messages oldest-first', async () => {
+    const { supabase } = require('../lib/supabase');
+    const makeQuery = (data: unknown[]) => ({
+      select: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      order: jest.fn().mockResolvedValue({ data, error: null }),
+      gte: jest.fn().mockReturnThis(),
+    });
+    supabase.from.mockImplementation((table: string) => makeQuery(table === 'coach_messages'
+      // Newest first, as the query asks for.
+      ? [
+          { id: 'm2', role: 'coach', text: 'Start with three easy runs a week.', created_at: '2026-09-23T10:00:05Z' },
+          { id: 'm1', role: 'user', text: 'How do I start running?', created_at: '2026-09-23T10:00:00Z' },
+        ]
+      : []));
+
+    const state = await bootstrapUserData();
+    expect(state.coachMessages).toEqual([
+      { id: 'm1', role: 'user', text: 'How do I start running?' },
+      { id: 'm2', role: 'coach', text: 'Start with three easy runs a week.' },
+    ]);
   });
 });

@@ -1,6 +1,6 @@
 import type { SphereId } from '../constants/theme';
-import { supabase, type GoalRow, type GoalSubtaskRow, type HabitRow, type HabitLogRow, type JournalEntryRow } from './supabase';
-import type { AppState, Goal, HabitItem, JournalEntry } from '../store/index';
+import { supabase, type CoachMessageRow, type GoalRow, type GoalSubtaskRow, type HabitRow, type HabitLogRow, type JournalEntryRow } from './supabase';
+import type { AppState, ChatMessage, Goal, HabitItem, JournalEntry } from '../store/index';
 import { localDateISO, streakFromDates } from './date';
 
 export function computeStreak(habitId: string, logs: HabitLogRow[]): number {
@@ -56,17 +56,25 @@ function toJournalEntry(row: JournalEntryRow): JournalEntry {
   };
 }
 
+// Saved coach chat, most recent last. Only the latest turns are loaded.
+const COACH_HISTORY_LIMIT = 100;
+
+function toChatMessage(row: CoachMessageRow): ChatMessage {
+  return { id: row.id, role: row.role, text: row.text };
+}
+
 export async function bootstrapUserData(): Promise<Partial<AppState>> {
   const since = new Date();
   since.setFullYear(since.getFullYear() - 1);
   const sinceDate = localDateISO(since);
 
-  const [goalsRes, subtasksRes, habitsRes, logsRes, journalRes] = await Promise.all([
+  const [goalsRes, subtasksRes, habitsRes, logsRes, journalRes, coachRes] = await Promise.all([
     supabase.from('goals').select('*').order('created_at', { ascending: true }),
     supabase.from('goal_subtasks').select('*').order('sort_order', { ascending: true }),
     supabase.from('habits').select('*').order('created_at', { ascending: true }),
     supabase.from('habit_logs').select('habit_id, user_id, date, done, id, created_at').gte('date', sinceDate).order('date', { ascending: false }),
     supabase.from('journal_entries').select('*').order('date', { ascending: false }),
+    supabase.from('coach_messages').select('id, role, text, created_at').limit(COACH_HISTORY_LIMIT).order('created_at', { ascending: false }),
   ]);
 
   const goalRows: GoalRow[] = goalsRes.data ?? [];
@@ -74,10 +82,13 @@ export async function bootstrapUserData(): Promise<Partial<AppState>> {
   const habitRows: HabitRow[] = habitsRes.data ?? [];
   const logRows: HabitLogRow[] = logsRes.data ?? [];
   const journalRows: JournalEntryRow[] = journalRes.data ?? [];
+  const coachRows: CoachMessageRow[] = coachRes.data ?? [];
 
   const goals = goalRows.map(r => toGoal(r, subtaskRows));
   const habits = habitRows.map(r => toHabitItem(r, logRows));
   const journal = journalRows.map(toJournalEntry);
 
-  return { goals, habits, journal };
+  const coachMessages = [...coachRows].reverse().map(toChatMessage);
+
+  return { goals, habits, journal, coachMessages };
 }

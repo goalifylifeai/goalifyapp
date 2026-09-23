@@ -87,6 +87,13 @@ export type HabitLogRow = {
   created_at: string;
 };
 
+export type CoachMessageRow = {
+  id: string;
+  role: 'user' | 'coach';
+  text: string;
+  created_at: string;
+};
+
 export type JournalEntryRow = {
   id: string;
   user_id: string;

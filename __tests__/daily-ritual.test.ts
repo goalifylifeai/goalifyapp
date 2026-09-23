@@ -6,14 +6,14 @@ const GOALS: Goal[] = [
   {
     id: 'g1', sphere: 'health', title: 'Run a half-marathon', due: 'Oct 12', progress: 0.34,
     sub: [
-      { t: 'Complete first 10K', done: false },
-      { t: 'Hold 9:30 / mile pace for 8 mi', done: false },
-      { t: 'Already done task', done: true },
+      { id: 's1', t: 'Complete first 10K', done: false },
+      { id: 's2', t: 'Hold 9:30 / mile pace for 8 mi', done: false },
+      { id: 's3', t: 'Already done task', done: true },
     ],
   },
   {
     id: 'g2', sphere: 'career', title: 'Ship design system', due: 'Jul 18', progress: 0.78,
-    sub: [{ t: 'Run team adoption review', done: false }],
+    sub: [{ id: 's4', t: 'Run team adoption review', done: false }],
   },
 ];
 

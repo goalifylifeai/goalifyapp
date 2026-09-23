@@ -17,10 +17,10 @@ export const LEVELS = [
 // Caption per sphere, describing the "arrived" scene the vision board generates
 // for that sphere (see supabase/functions/generate-vision SCENES stage 3).
 export const SPHERE_VISION_CAPTIONS: Record<SphereId, string> = {
-  finance:       'A small kitchen, light through linen, a table with nothing left owing.',
-  health:        'A wide quiet morning. The road, your breath, the finish in sight.',
-  career:        'The work shipped, the room nodding, the notebook full.',
-  relationships: 'A long table, the candle burned low, the people you love still there.',
+  finance:       'A sunlit sill, a jar that keeps filling, a plant still growing.',
+  health:        'Morning light, worn-in shoes, the road you already ran.',
+  career:        'The work finished, the desk quiet, flowers for the win.',
+  relationships: 'A long table after a good night, candles burned low.',
 };
 
 // Fallback gradient shown behind a vision banner while its image loads.

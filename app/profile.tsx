@@ -239,7 +239,7 @@ export default function ProfileScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, fontWeight: '500' }}>Gender-aware imagery</Text>
-              <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 4, lineHeight: 17 }}>Vision board figures and affirmations adapt to the pronouns above.</Text>
+              <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 4, lineHeight: 17 }}>Health and career vision images show someone who matches the pronouns above.</Text>
             </View>
             <TouchableOpacity
               onPress={() => {
