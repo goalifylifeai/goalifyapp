@@ -11,9 +11,9 @@ jest.mock('expo-calendar', () => ({
   getCalendarsAsync: jest.fn().mockResolvedValue([]),
   getDefaultCalendarAsync: jest.fn().mockResolvedValue({ source: { id: 'src-1', name: 'Default' } }),
   createCalendarAsync: jest.fn().mockResolvedValue('cal-goalify'),
-  createEventAsync: jest.fn().mockImplementation((_calId: string, event: object) => {
+  createEventAsync: jest.fn().mockImplementation((_calId: string, event?: object) => {
     const id = `evt-${mockNextEventId++}`;
-    mockCreatedEvents[id] = event;
+    mockCreatedEvents[id] = event ?? {};
     return Promise.resolve(id);
   }),
   deleteEventAsync: jest.fn().mockResolvedValue(undefined),
@@ -54,9 +54,9 @@ beforeEach(() => {
   mockCalendar.getCalendarsAsync.mockResolvedValue([]);
   mockCalendar.getDefaultCalendarAsync.mockResolvedValue({ source: { id: 'src-1', name: 'Default' } } as any);
   mockCalendar.createCalendarAsync.mockResolvedValue('cal-goalify' as any);
-  mockCalendar.createEventAsync.mockImplementation((_calId: string, event: object) => {
+  mockCalendar.createEventAsync.mockImplementation((_calId: string, event?: object) => {
     const id = `evt-${mockNextEventId++}`;
-    mockCreatedEvents[id] = event;
+    mockCreatedEvents[id] = event ?? {};
     return Promise.resolve(id);
   });
   mockCalendar.deleteEventAsync.mockResolvedValue(undefined);
@@ -94,7 +94,7 @@ describe('exportHabitToCalendar', () => {
   });
 
   it('creates an all-day daily recurring event with the habit title', async () => {
-    const habit = makeHabit({ label: 'Meditate', icon: '○', sphere: 'mind' });
+    const habit = makeHabit({ label: 'Meditate', icon: '○', sphere: 'health' });
     await exportHabitToCalendar(habit);
     expect(mockCalendar.createEventAsync).toHaveBeenCalledWith(
       expect.any(String),

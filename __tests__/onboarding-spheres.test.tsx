@@ -17,7 +17,7 @@ jest.mock('react-native-safe-area-context', () => {
 
 import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
-import SpheresStep from '../app/(onboarding)/spheres.tsx';
+import SpheresStep from '../app/(onboarding)/spheres';
 import { useOnboarding } from '../store/onboarding';
 import { router } from 'expo-router';
 

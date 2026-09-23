@@ -3,6 +3,7 @@ import { View, Text } from 'react-native';
 import { COLORS, type SphereId } from '../../constants/theme';
 import { SPHERE_LIST, computeSphereData } from '../../constants/data';
 import { useStore } from '../../store';
+import { activeGoals } from '../../lib/goals';
 import type { Goal } from '../../store';
 import { F } from '../ui';
 import { SphereSelectStep } from './SphereSelectStep';
@@ -22,7 +23,7 @@ function lowestSphere(goals: Goal[]): SphereId | null {
 
 export function TomorrowPickStep({ selected, onSelect }: Props) {
   const { state } = useStore();
-  const suggestion = lowestSphere(state.goals);
+  const suggestion = lowestSphere(activeGoals(state.goals));
 
   return (
     <View style={{ flex: 1 }}>

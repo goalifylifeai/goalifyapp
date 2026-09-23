@@ -49,6 +49,7 @@ export type GoalRow = {
   sphere: 'finance' | 'health' | 'career' | 'relationships';
   title: string;
   due_date: string | null;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -84,6 +85,13 @@ export type HabitLogRow = {
   user_id: string;
   date: string;
   done: boolean;
+  created_at: string;
+};
+
+export type CoachMessageRow = {
+  id: string;
+  role: 'user' | 'coach';
+  text: string;
   created_at: string;
 };
 

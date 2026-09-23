@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
 import { bootstrapUserData } from '../lib/bootstrap';
-import { enqueue, drainQueue, type QueueItem } from '../lib/offline-queue';
+import { enqueue, drainQueue, clearQueue, type QueueItem } from '../lib/offline-queue';
 import { localDateISO } from '../lib/date';
 import { trackAll } from '../lib/analytics';
 import { eventsForAction } from '../lib/analytics-events';
@@ -50,6 +50,16 @@ async function writeCache(state: AppState): Promise<void> {
   }
 }
 
+// Persisted slices go back to empty on sign-out so the next account on this
+// device never sees (or writes under its own id) the previous account's data.
+const SIGNED_OUT_STATE: Partial<AppState> = {
+  goals: initialState.goals,
+  habits: initialState.habits,
+  journal: initialState.journal,
+  todayActions: initialState.todayActions,
+  coachMessages: initialState.coachMessages,
+};
+
 // supabase-js resolves (not rejects) on HTTP/Postgres errors. Throw so the
 // caller falls back to the offline queue instead of silently losing the write.
 async function check(req: PromiseLike<{ error: unknown } | null | undefined>): Promise<void> {
@@ -78,7 +88,7 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
         if (!goal) return;
 
         await check(supabase.from('goals').upsert(
-          { id: goal.id, user_id: userId, sphere: goal.sphere, title: goal.title, due_date: goal.due || null },
+          { id: goal.id, user_id: userId, sphere: goal.sphere, title: goal.title, due_date: goal.due || null, completed_at: goal.completedAt ?? null },
           { onConflict: 'id' },
         ));
         
@@ -179,7 +189,7 @@ function actionToQueueItems(action: AppAction, state: AppState, userId: string):
         id: `goal:${g.id}`,
         table: 'goals',
         operation: 'upsert',
-        payload: { id: g.id, user_id: userId, sphere: g.sphere, title: g.title, due_date: g.due || null },
+        payload: { id: g.id, user_id: userId, sphere: g.sphere, title: g.title, due_date: g.due || null, completed_at: g.completedAt ?? null },
         created_at: now,
         retries: 0,
       });
@@ -320,6 +330,23 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
   const [state, rawDispatch] = useReducer(appReducer, initialState);
   const stateRef = useRef(state);
   const userIdRef = useRef<string | null>(null);
+  // Writes dispatched before the session is known (INITIAL_SESSION arrives
+  // asynchronously). Synced once it is; dropped on sign-out.
+  const pendingRef = useRef<{ action: AppAction; state: AppState }[]>([]);
+
+  const syncOrQueue = useCallback((action: AppAction, nextState: AppState, userId: string) => {
+    writeCache(nextState).catch(() => {});
+    syncAction(action, nextState, userId).catch(() => {
+      const items = actionToQueueItems(action, nextState, userId);
+      items.forEach(item => enqueue(item).catch(() => {}));
+    });
+  }, []);
+
+  const flushPending = useCallback((userId: string) => {
+    const pending = pendingRef.current;
+    pendingRef.current = [];
+    pending.forEach(({ action, state: s }) => syncOrQueue(action, s, userId));
+  }, [syncOrQueue]);
 
   useEffect(() => {
     stateRef.current = state;
@@ -341,8 +368,13 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return;
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-        userIdRef.current = session.user.id;
+        const userId = session.user.id;
+        userIdRef.current = userId;
+        flushPending(userId);
         try {
+          // Land offline writes first, or the server copy loaded below would
+          // HYDRATE over goals that exist only on this device.
+          await drainQueue(replayQueueItem).catch(() => {});
           const freshState = await bootstrapUserData();
           if (!cancelled) {
             rawDispatch({ type: 'HYDRATE', state: freshState });
@@ -353,6 +385,11 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
         }
       } else if (event === 'SIGNED_OUT') {
         userIdRef.current = null;
+        pendingRef.current = [];
+        await drainQueue(replayQueueItem).catch(() => {});
+        await clearQueue().catch(() => {});
+        await AsyncStorage.removeItem(CACHE_KEY).catch(() => {});
+        if (!cancelled) rawDispatch({ type: 'HYDRATE', state: SIGNED_OUT_STATE });
       }
     });
 
@@ -378,19 +415,18 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
 
       const currentState = stateRef.current;
       const nextState = appReducer(currentState, action);
+      // Tracked here, once per dispatch, before the session check: buffered
+      // writes are tracked now and not again when flushPending syncs them.
       trackAll(eventsForAction(action, currentState, nextState));
 
       const userId = userIdRef.current;
-      if (!userId) return;
+      if (!userId) {
+        pendingRef.current.push({ action, state: nextState });
+        return;
+      }
 
       // Fire-and-forget: sync to Supabase, enqueue on failure
-
-      writeCache(nextState).catch(() => {});
-
-      syncAction(action, nextState, userId).catch(() => {
-        const items = actionToQueueItems(action, nextState, userId);
-        items.forEach(item => enqueue(item).catch(() => {}));
-      });
+      syncOrQueue(action, nextState, userId);
     },
     [],
   );

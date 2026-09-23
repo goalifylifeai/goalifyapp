@@ -3,7 +3,7 @@ import { ScrollView, View, Text, TextInput, TouchableOpacity, Alert, Platform, S
 import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../components/DateTimePicker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { COLORS } from '../constants/theme';
@@ -16,6 +16,7 @@ import { useProfile } from '../store/profile';
 import { usePlan } from '../store/plan';
 import { deleteAccountMessage } from '../lib/plan-state';
 import { useStore } from '../store';
+import { completedGoals } from '../lib/goals';
 import { useDailyRitual } from '../store/daily-ritual';
 import { syncHabitsToCalendar, removeAllHabitsFromCalendar } from '../lib/calendar';
 import { getNotificationTimes, saveNotificationTimes, DEFAULT_NOTIFICATION_TIMES } from '../lib/notification-prefs';
@@ -33,7 +34,7 @@ export default function ProfileScreen() {
 
   const { streak } = useDailyRitual();
   const lvl = levelForGoals(state.goals);
-  const goalsDone = state.goals.filter(g => g.sub.length > 0 && g.sub.every(st => st.done)).length;
+  const goalsDone = completedGoals(state.goals).length;
   const [name, setName] = useState(profile?.display_name ?? '');
   const [pronoun, setPronoun] = useState(profile?.pronouns ?? '');
   const [genderAware, setGenderAware] = useState(profile?.gender_aware_coaching ?? true);
@@ -251,7 +252,7 @@ export default function ProfileScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, fontWeight: '500' }}>Gender-aware imagery</Text>
-              <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 4, lineHeight: 17 }}>Vision board figures and affirmations adapt to the pronouns above.</Text>
+              <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 4, lineHeight: 17 }}>Health and career vision images show someone who matches the pronouns above.</Text>
             </View>
             <TouchableOpacity
               onPress={() => {

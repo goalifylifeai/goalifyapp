@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, TextInput, Platform } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../../components/DateTimePicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import { SPHERE_LIST } from '../../constants/data';

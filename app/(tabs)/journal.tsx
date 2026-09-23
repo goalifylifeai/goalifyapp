@@ -3,19 +3,10 @@ import { ScrollView, View, Text, TextInput, TouchableOpacity } from 'react-nativ
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import { SectionLabel, Card, SentimentChart, F } from '../../components/ui';
 import { useStore } from '../../store';
-import { newId } from '../../lib/id';
+import { buildJournalEntry } from '../../lib/journal-entry';
 import { requestSentimentCheckIn } from '../../lib/nudges';
 import { localDateISO, formatDisplayDate } from '../../lib/date';
 import { sentimentSummary } from '../../lib/journal-stats';
-
-function roughSentiment(text: string): number {
-  const positive = /\b(good|great|proud|happy|steady|moved|shipped|win|better|love|calm|grateful|strong|joy|excited)\b/gi;
-  const negative = /\b(hard|miss|fail|sad|tired|struggle|heavy|guilt|hurt|anxiety|worried|stuck|low|skip)\b/gi;
-  const pos = (text.match(positive) ?? []).length;
-  const neg = (text.match(negative) ?? []).length;
-  const base = (pos - neg) / (pos + neg + 3);
-  return Math.min(Math.max(base, -0.9), 0.9);
-}
 
 export default function JournalScreen() {
   const { state, dispatch } = useStore();
@@ -41,16 +32,7 @@ export default function JournalScreen() {
   const saveEntry = () => {
     const text = draft.trim();
     if (!text) return;
-    dispatch({
-      type: 'ADD_JOURNAL',
-      entry: {
-        id: newId(),
-        date: localDateISO(),
-        sentiment: roughSentiment(text),
-        excerpt: text.length > 140 ? text.slice(0, 138) + '…' : text,
-        body: text,
-      },
-    });
+    dispatch({ type: 'ADD_JOURNAL', entry: buildJournalEntry(text, localDateISO()) });
     setDraft('');
     setComposing(false);
     // Fire-and-forget: may schedule a check-in if sentiment is trending down.

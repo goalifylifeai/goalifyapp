@@ -27,7 +27,7 @@ jest.mock('react-native-safe-area-context', () => {
 
 import React from 'react';
 import { render } from '@testing-library/react-native';
-import TabLayout from '../app/(tabs)/_layout.tsx';
+import TabLayout from '../app/(tabs)/_layout';
 import { useProfile } from '../store/profile';
 import { Tabs } from 'expo-router';
 
@@ -47,7 +47,7 @@ describe('<TabLayout /> tab bar config', () => {
 
   it('renders the header with the profile initial and app title', () => {
     render(<TabLayout />);
-    const tabsCall = (Tabs as jest.Mock).mock.calls[0][0];
+    const tabsCall = (Tabs as unknown as jest.Mock).mock.calls[0][0];
     const { getByText } = render(tabsCall.screenOptions.header());
     expect(getByText('goalify')).toBeTruthy();
     expect(getByText('G')).toBeTruthy(); // first letter of display_name, uppercased
@@ -56,7 +56,7 @@ describe('<TabLayout /> tab bar config', () => {
   it('shows "?" as the header initial when there is no profile display_name', () => {
     (useProfile as jest.Mock).mockReturnValue({ profile: null });
     render(<TabLayout />);
-    const tabsCall = (Tabs as jest.Mock).mock.calls[0][0];
+    const tabsCall = (Tabs as unknown as jest.Mock).mock.calls[0][0];
     const { getAllByText } = render(tabsCall.screenOptions.header());
     // Two "?" render: the help/tour button and the avatar initial fallback.
     expect(getAllByText('?').length).toBe(2);

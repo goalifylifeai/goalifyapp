@@ -11,6 +11,7 @@ export type Subtask = { id: string; t: string; done: boolean };
 
 export type Goal = {
   id: string; sphere: SphereId; title: string; due: string; progress: number; sub: Subtask[];
+  completedAt?: string; // ISO timestamp; unset while the goal is active
 };
 
 export type HabitItem = {
