@@ -1,6 +1,7 @@
 // Plan lookup + quota enforcement shared by the AI edge functions.
 
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { planFromRow } from './entitlement.ts';
 
 export type Plan = 'free' | 'beyond';
 
@@ -8,12 +9,21 @@ export type QuotaWindow = 'day' | 'week' | 'month' | 'total';
 export type Limit = { limit: number; window: QuotaWindow };
 
 /**
- * The user's plan. This is the single place to wire in the real subscription
- * check once billing exists (e.g. a table kept in sync by the RevenueCat
- * webhook). Until then everyone is on Free.
+ * The user's plan, from public.subscriptions (kept in sync with RevenueCat by
+ * revenuecat-webhook and sync-subscription). A failed lookup falls back to
+ * Free: the user briefly gets Free limits rather than the call failing.
  */
-export async function getPlan(_admin: SupabaseClient, _userId: string): Promise<Plan> {
-  return 'free';
+export async function getPlan(admin: SupabaseClient, userId: string): Promise<Plan> {
+  const { data, error } = await admin
+    .from('subscriptions')
+    .select('has_entitlement, expires_at, grace_expires_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) {
+    console.error('getPlan lookup failed', error.message);
+    return 'free';
+  }
+  return planFromRow(data, new Date());
 }
 
 /**
