@@ -87,6 +87,9 @@ module.exports = {
       googleOAuthIosClientId: process.env.GOOGLE_OAUTH_IOS_CLIENT_ID ?? '',
       googleOAuthAndroidClientId: process.env.GOOGLE_OAUTH_ANDROID_CLIENT_ID ?? '',
       googleOAuthWebClientId: process.env.GOOGLE_OAUTH_WEB_CLIENT_ID ?? '',
+      revenuecatIosKey: process.env.REVENUECAT_IOS_KEY ?? '',
+      revenuecatAndroidKey: process.env.REVENUECAT_ANDROID_KEY ?? '',
+      revenuecatWebKey: process.env.REVENUECAT_WEB_KEY ?? '',
       eas: {
         projectId: '688a053f-42b8-4e44-b220-7aa3c03b15ba',
       },

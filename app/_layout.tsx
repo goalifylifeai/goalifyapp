@@ -19,6 +19,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StoreProvider } from '../store';
 import { AuthProvider, useAuth } from '../store/auth';
 import { ProfileProvider } from '../store/profile';
+import { PlanProvider } from '../store/plan';
 import { OnboardingProvider, useOnboarding } from '../store/onboarding';
 import { FutureSelfProvider } from '../store/future-self';
 import { DailyRitualProvider, useDailyRitual } from '../store/daily-ritual';
@@ -108,6 +109,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <ProfileProvider>
+            <PlanProvider>
             <OnboardingProvider>
               <FutureSelfProvider>
               <StoreProvider>
@@ -144,6 +146,7 @@ export default function RootLayout() {
               </StoreProvider>
               </FutureSelfProvider>
             </OnboardingProvider>
+            </PlanProvider>
           </ProfileProvider>
         </AuthProvider>
       </SafeAreaProvider>
