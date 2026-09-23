@@ -17,7 +17,7 @@ jest.mock('react-native-safe-area-context', () => {
 
 import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
-import PronounsStep from '../app/(onboarding)/pronouns.tsx';
+import PronounsStep from '../app/(onboarding)/pronouns';
 import { useOnboarding } from '../store/onboarding';
 import { router } from 'expo-router';
 

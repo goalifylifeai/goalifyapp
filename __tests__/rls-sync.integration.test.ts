@@ -8,7 +8,7 @@
  * Skipped automatically when the stack is not available.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const LOCAL_URL = 'http://127.0.0.1:54321';
 const ANON_KEY =
@@ -43,8 +43,8 @@ describe.skip('RLS Isolation: Persistence + Sync Layer', () => {
   const admin = createClient(LOCAL_URL, SERVICE_KEY);
   let userAId: string;
   let userBId: string;
-  let clientA: ReturnType<typeof createClient>;
-  let clientB: ReturnType<typeof createClient>;
+  let clientA: SupabaseClient<any>;
+  let clientB: SupabaseClient<any>;
 
   beforeAll(async () => {
     const running = await isSupabaseRunning();
@@ -69,8 +69,8 @@ describe.skip('RLS Isolation: Persistence + Sync Layer', () => {
     userBId = userB!.id;
 
     // Sign in as each user to get anon clients with their JWTs
-    clientA = createClient(LOCAL_URL, ANON_KEY);
-    clientB = createClient(LOCAL_URL, ANON_KEY);
+    clientA = createClient<any>(LOCAL_URL, ANON_KEY);
+    clientB = createClient<any>(LOCAL_URL, ANON_KEY);
 
     await clientA.auth.signInWithPassword({ email: userA!.email!, password: 'password123' });
     await clientB.auth.signInWithPassword({ email: userB!.email!, password: 'password123' });

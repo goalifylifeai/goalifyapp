@@ -49,7 +49,7 @@ jest.mock('../components/HabitPromptModal', () => ({
 
 import React from 'react';
 import { render, fireEvent, within } from '@testing-library/react-native';
-import GoalsScreen from '../app/(tabs)/goals.tsx';
+import GoalsScreen from '../app/(tabs)/goals';
 import { useStore } from '../store';
 import { useLocalSearchParams, router } from 'expo-router';
 import type { Goal } from '../store';
