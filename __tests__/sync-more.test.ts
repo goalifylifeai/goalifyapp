@@ -50,6 +50,7 @@ jest.mock('../lib/bootstrap', () => ({
 jest.mock('../lib/offline-queue', () => ({
   enqueue: jest.fn().mockResolvedValue(undefined),
   drainQueue: jest.fn().mockResolvedValue(undefined),
+  clearQueue: jest.fn().mockResolvedValue(undefined),
 }));
 
 import { renderHook, act } from '@testing-library/react-native';

@@ -77,6 +77,13 @@ export async function bootstrapUserData(): Promise<Partial<AppState>> {
     supabase.from('coach_messages').select('id, role, text, created_at').limit(COACH_HISTORY_LIMIT).order('created_at', { ascending: false }),
   ]);
 
+  // A failed read must not look like an empty account: the caller HYDRATEs
+  // this over local state and the cache. Throw so the cached data stays.
+  const core = { goals: goalsRes, goal_subtasks: subtasksRes, habits: habitsRes, habit_logs: logsRes, journal_entries: journalRes };
+  for (const [table, res] of Object.entries(core)) {
+    if (res.error) throw new Error(`${table}: ${res.error.message}`);
+  }
+
   const goalRows: GoalRow[] = goalsRes.data ?? [];
   const subtaskRows: GoalSubtaskRow[] = subtasksRes.data ?? [];
   const habitRows: HabitRow[] = habitsRes.data ?? [];
