@@ -8,7 +8,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
 
 const GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions';
-const MODEL = 'anthropic/claude-sonnet-5';
+// Gemini 3 Flash keeps a max-usage Goalify Beyond user at ~$0.83/month against
+// ~$3.39 net revenue (see docs/superpowers/specs/2026-09-23-paid-tiers-user-behaviour.md).
+const MODEL = 'google/gemini-3-flash';
 // How long a generated result is served from coach_insights before the next
 // app open regenerates it. The app requests both on every launch, so these
 // windows are what bound the automatic LLM spend. Free insights are kept for
