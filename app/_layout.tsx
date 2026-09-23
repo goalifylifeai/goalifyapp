@@ -134,6 +134,7 @@ export default function RootLayout() {
                     <Stack.Screen name="score-info" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="level-info" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="streak-info" options={{ presentation: 'modal', gestureEnabled: true }} />
+                    <Stack.Screen name="paywall" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="ritual" />
                     <Stack.Screen name="vision" />
                     <Stack.Screen name="circles" />
