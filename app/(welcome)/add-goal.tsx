@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../../components/DateTimePicker';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import type { SphereId } from '../../constants/theme';
 import { F } from '../../components/ui';

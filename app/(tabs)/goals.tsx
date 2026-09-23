@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../../components/DateTimePicker';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import { SPHERE_LIST, SPHERE_VISION_CAPTIONS, SPHERE_VISION_TONES } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Bar, Check, Pill, F } from '../../components/ui';

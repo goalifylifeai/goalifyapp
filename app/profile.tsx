@@ -3,7 +3,7 @@ import { ScrollView, View, Text, TextInput, TouchableOpacity, Alert, Platform, S
 import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../components/DateTimePicker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { COLORS } from '../constants/theme';
