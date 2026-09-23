@@ -152,7 +152,7 @@ Deno.serve(async (req: Request) => {
     adminClient.from('goal_subtasks').select('goal_id,text,done').eq('user_id', user.id),
     adminClient.from('habits').select('id,label,sphere,target_description').eq('user_id', user.id),
     adminClient.from('habit_logs').select('habit_id,date,done').eq('user_id', user.id).gte('date', since),
-    adminClient.from('journal_entries').select('date,sentiment,excerpt').eq('user_id', user.id).gte('date', since).order('date', { ascending: false }).limit(30),
+    adminClient.from('journal_entries').select('date,sentiment,excerpt').eq('user_id', user.id).gte('date', since).order('date', { ascending: false }).order('created_at', { ascending: false }).limit(30),
   ]);
 
   const context = {
@@ -251,10 +251,11 @@ Deno.serve(async (req: Request) => {
     if (mode === 'nudge-sentiment') {
       const recent = context.journal_last_30_days.slice(0, 5) as { date: string; sentiment: number }[];
 
-      // Require at least 3 entries, and a monotonically non-increasing trend
-      // (most-recent-first) with the latest entry clearly low, before nudging.
+      // Require at least 3 entries getting steadily lower over time, with the
+      // latest clearly low. `recent` is newest-first, so each older entry must
+      // be >= the one after it.
       const trendingDown = recent.length >= 3
-        && recent.slice(0, 3).every((entry, i, arr) => i === 0 || entry.sentiment <= arr[i - 1].sentiment)
+        && recent.slice(0, 3).every((entry, i, arr) => i === 0 || entry.sentiment >= arr[i - 1].sentiment)
         && recent[0].sentiment < -0.1;
 
       if (!trendingDown || !(await consumeQuota(adminClient, user.id, mode))) {
