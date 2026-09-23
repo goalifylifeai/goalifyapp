@@ -41,8 +41,33 @@ const SCENES: Record<SphereId, Record<VisionStage, string>> = {
   },
 };
 
-function buildPrompt(sphere: SphereId, stage: VisionStage): string {
-  return `${SCENES[sphere][stage]}, ${STYLE}`;
+
+// Final-stage scenes with the user in them, used only when their profile gives
+// a gender to show (she/he pronouns with "Gender-aware imagery" on). Everyone
+// else gets the people-free SCENES above. The figure is framed from behind or
+// in profile and nothing carries lettering, since FLUX garbles text and faces.
+type Figure = 'woman' | 'man';
+
+const PEOPLE_STYLE = 'warm editorial photograph, soft golden natural light, gentle film grain, warm muted palette of cream, sand and honey brown, shallow depth of field, quiet space in the lower third, hopeful and triumphant mood';
+
+const PEOPLE_SCENES: Partial<Record<SphereId, (figure: Figure) => string>> = {
+  health: f => `A ${f} runner crossing a marathon finish line seen from behind, arms raised in triumph, breaking through a plain unmarked white ribbon, wearing a plain running top, a softly blurred cheering crowd lining both sides of the road, golden morning light`,
+  career: f => `A confident ${f} presenting finished work to a small team in a warm sunlit office, standing beside a large screen that faces away from the camera, the ${f} shown in three-quarter profile, colleagues nodding in soft focus`,
+};
+
+/** she/he pronouns → the figure to show; null means use the people-free scene. */
+function figureFromProfile(pronouns: string | null | undefined, genderAware: boolean): Figure | null {
+  if (!genderAware) return null;
+  const p = (pronouns ?? '').trim().toLowerCase();
+  if (/^she\b/.test(p)) return 'woman';
+  if (/^he\b/.test(p)) return 'man';
+  return null;
+}
+
+// Keep in sync with lib/vision-prompts.ts (the copy the app's tests cover).
+function buildPrompt(sphere: SphereId, stage: VisionStage, figure: Figure | null): string {
+  const people = stage === 3 && figure ? PEOPLE_SCENES[sphere] : undefined;
+  return people ? `${people(figure!)}, ${PEOPLE_STYLE}` : `${SCENES[sphere][stage]}, ${STYLE}`;
 }
 
 function promptHash(prompt: string): string {
@@ -136,6 +161,14 @@ Deno.serve(async (req: Request) => {
   }
   const sphere = goalRow.sphere as SphereId;
   const seed = seedFromGoalId(goal_id);
+
+  // Read gender from the caller's own profile (never from the request).
+  const { data: profile } = await adminClient
+    .from('profiles')
+    .select('pronouns, gender_aware_coaching')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const figure = figureFromProfile(profile?.pronouns as string | null, profile?.gender_aware_coaching !== false);
   const stages: VisionStage[] = [FINAL_STAGE];
 
   // Load existing rows to check idempotency and rate limits.
@@ -153,7 +186,7 @@ Deno.serve(async (req: Request) => {
   const results: Record<string, unknown>[] = [];
 
   for (const stage of stages) {
-    const prompt = buildPrompt(sphere, stage);
+    const prompt = buildPrompt(sphere, stage, figure);
     const hash = promptHash(prompt);
     const existingRow = existingMap.get(stage);
 
