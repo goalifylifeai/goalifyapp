@@ -9,7 +9,14 @@ export type QueueItem = {
   payload: Record<string, unknown>;
   created_at: string;
   retries: number;
+  /** User who made the write. Only replayed while that user is signed in. */
+  owner?: string;
 };
+
+// Items queued before `owner` existed fall back to the payload's user_id.
+function ownerOf(item: QueueItem): string | undefined {
+  return item.owner ?? (item.payload.user_id as string | undefined);
+}
 
 export async function getQueue(): Promise<QueueItem[]> {
   try {
@@ -43,11 +50,18 @@ const MAX_RETRIES = 5;
 
 export async function drainQueue(
   syncFn: (item: QueueItem) => Promise<void>,
+  ownerId?: string,
 ): Promise<void> {
   const queue = await getQueue();
   const remaining: QueueItem[] = [];
 
   for (const item of queue) {
+    // Another account's write: keep it, untouched, for that account's next sign-in.
+    const owner = ownerOf(item);
+    if (ownerId && owner && owner !== ownerId) {
+      remaining.push(item);
+      continue;
+    }
     try {
       await syncFn(item);
       // success — drop from queue

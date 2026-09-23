@@ -5,6 +5,7 @@
 // AsyncStorage) so that replayQueueItem's upsert/delete/error branches are
 // actually exercised, not just asserted-on via a queueMock.
 
+const mockAuthCallbacks: Function[] = [];
 const mockNetInfoListeners: Array<(state: { isConnected: boolean | null }) => void> = [];
 
 jest.mock('@react-native-community/netinfo', () => ({
@@ -17,7 +18,10 @@ jest.mock('@react-native-community/netinfo', () => ({
 jest.mock('../lib/supabase', () => ({
   supabase: {
     auth: {
-      onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: jest.fn() } } })),
+      onAuthStateChange: jest.fn((cb: Function) => {
+        mockAuthCallbacks.push(cb);
+        return { data: { subscription: { unsubscribe: jest.fn() } } };
+      }),
     },
     from: jest.fn(),
   },
@@ -57,15 +61,27 @@ function getMocks() {
 
 const QUEUE_KEY = '@goalify/sync_queue';
 
+// The queue only replays for a signed-in user. Sign in before seeding the
+// queue so the sign-in drain sees it empty and each test exercises one
+// reconnect replay.
+async function signIn(userId = 'user-1') {
+  await act(async () => {
+    for (const cb of mockAuthCallbacks) await cb('SIGNED_IN', { user: { id: userId } });
+  });
+}
+
 describe('usePersistentStore — replayQueueItem via real offline-queue', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockNetInfoListeners.length = 0;
+    mockAuthCallbacks.length = 0;
     const { asyncMock } = getMocks();
     asyncMock.__reset();
   });
 
   it('replays a queued upsert successfully and removes it from the queue', async () => {
+    renderHook(() => usePersistentStore());
+    await signIn();
     const { asyncMock, supabase } = getMocks();
     await asyncMock.setItem(QUEUE_KEY, JSON.stringify([
       { id: 'goal:g1', table: 'goals', operation: 'upsert', payload: { id: 'g1', title: 'x' }, created_at: new Date().toISOString(), retries: 0 },
@@ -73,8 +89,6 @@ describe('usePersistentStore — replayQueueItem via real offline-queue', () => 
 
     const mockUpsert = jest.fn().mockResolvedValue({ error: null });
     supabase.from.mockReturnValue({ upsert: mockUpsert });
-
-    renderHook(() => usePersistentStore());
 
     act(() => {
       mockNetInfoListeners[0]({ isConnected: true });
@@ -90,6 +104,8 @@ describe('usePersistentStore — replayQueueItem via real offline-queue', () => 
   });
 
   it('replays a queued delete successfully', async () => {
+    renderHook(() => usePersistentStore());
+    await signIn();
     const { asyncMock, supabase } = getMocks();
     await asyncMock.setItem(QUEUE_KEY, JSON.stringify([
       { id: 'goal_del:g2', table: 'goals', operation: 'delete', payload: { id: 'g2' }, created_at: new Date().toISOString(), retries: 0 },
@@ -97,8 +113,6 @@ describe('usePersistentStore — replayQueueItem via real offline-queue', () => 
 
     const mockEq = jest.fn().mockResolvedValue({ error: null });
     supabase.from.mockReturnValue({ delete: jest.fn(() => ({ eq: mockEq })) });
-
-    renderHook(() => usePersistentStore());
 
     act(() => {
       mockNetInfoListeners[0]({ isConnected: true });
@@ -114,14 +128,14 @@ describe('usePersistentStore — replayQueueItem via real offline-queue', () => 
   });
 
   it('keeps a queued item (with incremented retries) when the upsert still errors', async () => {
+    renderHook(() => usePersistentStore());
+    await signIn();
     const { asyncMock, supabase } = getMocks();
     await asyncMock.setItem(QUEUE_KEY, JSON.stringify([
       { id: 'goal:g3', table: 'goals', operation: 'upsert', payload: { id: 'g3' }, created_at: new Date().toISOString(), retries: 0 },
     ]));
 
     supabase.from.mockReturnValue({ upsert: jest.fn().mockResolvedValue({ error: new Error('still down') }) });
-
-    renderHook(() => usePersistentStore());
 
     act(() => {
       mockNetInfoListeners[0]({ isConnected: true });
@@ -137,14 +151,14 @@ describe('usePersistentStore — replayQueueItem via real offline-queue', () => 
   });
 
   it('keeps a queued item when the delete errors', async () => {
+    renderHook(() => usePersistentStore());
+    await signIn();
     const { asyncMock, supabase } = getMocks();
     await asyncMock.setItem(QUEUE_KEY, JSON.stringify([
       { id: 'goal_del:g4', table: 'goals', operation: 'delete', payload: { id: 'g4' }, created_at: new Date().toISOString(), retries: 0 },
     ]));
 
     supabase.from.mockReturnValue({ delete: jest.fn(() => ({ eq: jest.fn().mockResolvedValue({ error: new Error('still down') }) })) });
-
-    renderHook(() => usePersistentStore());
 
     act(() => {
       mockNetInfoListeners[0]({ isConnected: true });

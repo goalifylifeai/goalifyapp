@@ -170,19 +170,80 @@ describe('usePersistentStore auth lifecycle', () => {
     expect(result.current.state.goals.map(g => g.id)).toEqual(['g-cached']);
   });
 
-  it('clears state, cache and queue on sign-out so the next account starts clean', async () => {
+  it('clears state and cache on sign-out but keeps queued offline writes', async () => {
+    // Supabase has already dropped the session when SIGNED_OUT fires, so a
+    // replay here would be rejected by RLS; the queue must survive for the
+    // owner's next sign-in.
     const { asyncMock, queueMock, bootstrapMock } = getMocks();
     bootstrapMock.bootstrapUserData.mockResolvedValue({ goals: [goal('g-a')], habits: [], journal: [] });
 
     const { result } = renderHook(() => usePersistentStore());
     await fireAuth('SIGNED_IN', { user: { id: 'user-a' } });
     expect(result.current.state.goals).toHaveLength(1);
+    queueMock.drainQueue.mockClear();
 
     await fireAuth('SIGNED_OUT', null);
     await flush();
 
     expect(result.current.state.goals).toEqual([]);
     expect(asyncMock.removeItem).toHaveBeenCalledWith('@goalify/cache');
-    expect(queueMock.clearQueue).toHaveBeenCalled();
+    expect(queueMock.clearQueue).not.toHaveBeenCalled();
+    expect(queueMock.drainQueue).not.toHaveBeenCalled();
+  });
+
+  it('replays only the signed-in account\'s queued writes', async () => {
+    const { queueMock } = getMocks();
+    renderHook(() => usePersistentStore());
+    await fireAuth('SIGNED_IN', { user: { id: 'user-1' } });
+    expect(queueMock.drainQueue).toHaveBeenCalledWith(expect.any(Function), 'user-1');
+  });
+
+  it('does not replay the queue on reconnect while signed out', async () => {
+    const netInfo = jest.requireMock('@react-native-community/netinfo');
+    const { queueMock } = getMocks();
+    renderHook(() => usePersistentStore());
+    const listener = netInfo.addEventListener.mock.calls.at(-1)[0];
+
+    listener({ isConnected: true });
+    expect(queueMock.drainQueue).not.toHaveBeenCalled();
+
+    await fireAuth('SIGNED_IN', { user: { id: 'user-1' } });
+    queueMock.drainQueue.mockClear();
+    listener({ isConnected: true });
+    expect(queueMock.drainQueue).toHaveBeenCalledWith(expect.any(Function), 'user-1');
+  });
+
+  it('tags queued writes with the account that made them', async () => {
+    const { queueMock } = getMocks();
+    upsert.mockResolvedValue({ error: { message: 'offline' } });
+    const { result } = renderHook(() => usePersistentStore());
+    await fireAuth('SIGNED_IN', { user: { id: 'user-1' } });
+
+    act(() => {
+      result.current.dispatch({ type: 'ADD_GOAL', goal: goal('g-off') } as AppAction);
+    });
+    await flush();
+
+    expect(queueMock.enqueue).toHaveBeenCalledWith(expect.objectContaining({ table: 'goals', owner: 'user-1' }));
+  });
+
+  it('waits for pre-session writes to land before loading from the server', async () => {
+    const { bootstrapMock } = getMocks();
+    const calls: string[] = [];
+    upsert.mockImplementation(() => new Promise(r => setTimeout(() => { calls.push('upsert'); r({ error: null }); }, 20)));
+    bootstrapMock.bootstrapUserData.mockImplementation(async () => {
+      calls.push('bootstrap');
+      return { goals: [], habits: [], journal: [] };
+    });
+
+    const { result } = renderHook(() => usePersistentStore());
+    act(() => {
+      result.current.dispatch({ type: 'ADD_GOAL', goal: goal('g-early') } as AppAction);
+    });
+    await fireAuth('INITIAL_SESSION', { user: { id: 'user-1' } });
+    await flush();
+
+    expect(calls.indexOf('upsert')).toBeGreaterThanOrEqual(0);
+    expect(calls.indexOf('upsert')).toBeLessThan(calls.indexOf('bootstrap'));
   });
 });

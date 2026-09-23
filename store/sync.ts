@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
 import { bootstrapUserData } from '../lib/bootstrap';
-import { enqueue, drainQueue, clearQueue, type QueueItem } from '../lib/offline-queue';
+import { enqueue, drainQueue, type QueueItem } from '../lib/offline-queue';
 import { localDateISO } from '../lib/date';
 import { trackAll } from '../lib/analytics';
 import { eventsForAction } from '../lib/analytics-events';
@@ -334,18 +334,21 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
   // asynchronously). Synced once it is; dropped on sign-out.
   const pendingRef = useRef<{ action: AppAction; state: AppState }[]>([]);
 
-  const syncOrQueue = useCallback((action: AppAction, nextState: AppState, userId: string) => {
+  // Resolves once the write has landed or been queued.
+  const syncOrQueue = useCallback(async (action: AppAction, nextState: AppState, userId: string) => {
     writeCache(nextState).catch(() => {});
-    syncAction(action, nextState, userId).catch(() => {
+    try {
+      await syncAction(action, nextState, userId);
+    } catch {
       const items = actionToQueueItems(action, nextState, userId);
-      items.forEach(item => enqueue(item).catch(() => {}));
-    });
+      await Promise.all(items.map(item => enqueue({ ...item, owner: userId }).catch(() => {})));
+    }
   }, []);
 
-  const flushPending = useCallback((userId: string) => {
+  const flushPending = useCallback(async (userId: string) => {
     const pending = pendingRef.current;
     pendingRef.current = [];
-    pending.forEach(({ action, state: s }) => syncOrQueue(action, s, userId));
+    for (const { action, state: s } of pending) await syncOrQueue(action, s, userId);
   }, [syncOrQueue]);
 
   useEffect(() => {
@@ -370,11 +373,11 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         const userId = session.user.id;
         userIdRef.current = userId;
-        flushPending(userId);
         try {
-          // Land offline writes first, or the server copy loaded below would
-          // HYDRATE over goals that exist only on this device.
-          await drainQueue(replayQueueItem).catch(() => {});
+          // Land pre-session and offline writes first, or the server copy
+          // loaded below would HYDRATE over goals that exist only on this device.
+          await flushPending(userId);
+          await drainQueue(replayQueueItem, userId).catch(() => {});
           const freshState = await bootstrapUserData();
           if (!cancelled) {
             rawDispatch({ type: 'HYDRATE', state: freshState });
@@ -384,10 +387,11 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
           // bootstrap failure is non-fatal — cached data remains
         }
       } else if (event === 'SIGNED_OUT') {
+        // The session is already gone here, so the queue can't be replayed
+        // (RLS would reject it). Keep it: items are tagged with their owner and
+        // replay at that user's next sign-in, never under another account.
         userIdRef.current = null;
         pendingRef.current = [];
-        await drainQueue(replayQueueItem).catch(() => {});
-        await clearQueue().catch(() => {});
         await AsyncStorage.removeItem(CACHE_KEY).catch(() => {});
         if (!cancelled) rawDispatch({ type: 'HYDRATE', state: SIGNED_OUT_STATE });
       }
@@ -402,8 +406,9 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
   // Drain queue when connectivity is restored
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(netState => {
-      if (netState.isConnected) {
-        drainQueue(replayQueueItem).catch(() => {});
+      const userId = userIdRef.current;
+      if (netState.isConnected && userId) {
+        drainQueue(replayQueueItem, userId).catch(() => {});
       }
     });
     return () => unsubscribe();
@@ -426,7 +431,7 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
       }
 
       // Fire-and-forget: sync to Supabase, enqueue on failure
-      syncOrQueue(action, nextState, userId);
+      syncOrQueue(action, nextState, userId).catch(() => {});
     },
     [],
   );

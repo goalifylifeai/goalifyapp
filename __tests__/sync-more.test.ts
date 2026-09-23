@@ -635,7 +635,9 @@ describe('usePersistentStore — additional characterization', () => {
   // ── NetInfo reconnect drains the queue (lines 356-364) ──────────
   it('drains the offline queue when connectivity is restored', async () => {
     const { queueMock } = getMocks();
-    renderHook(() => usePersistentStore());
+    const { result } = renderHook(() => usePersistentStore());
+    await signIn(result, 'user-net');
+    queueMock.drainQueue.mockClear();
 
     expect(mockNetInfoListeners).toHaveLength(1);
 
