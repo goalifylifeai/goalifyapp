@@ -25,8 +25,11 @@ export type WeeklyReflection = {
   next_step: CoachNextStep;
 };
 
-/** Thrown by askCoach when the server's daily AI quota is used up. */
-export class CoachLimitError extends Error {}
+/** Thrown by askCoach when a chat limit is reached. `upgrade` is true when
+ *  the Free allowance is used up, i.e. the place to offer Goalify Beyond. */
+export class CoachLimitError extends Error {
+  constructor(message: string, readonly upgrade = false) { super(message); }
+}
 
 type CoachAiContextValue = {
   insights: CoachInsight[] | null;
@@ -82,8 +85,8 @@ export function CoachAiProvider({ children }: { children: ReactNode }) {
     // Non-2xx responses carry the Response on `error.context`.
     const res = (error as { context?: Response } | null)?.context;
     if (res?.status === 429) {
-      const body = await res.json().catch(() => null) as { message?: string } | null;
-      throw new CoachLimitError(body?.message ?? "You've reached today's coach limit. Try again tomorrow.");
+      const body = await res.json().catch(() => null) as { message?: string; upgrade?: boolean } | null;
+      throw new CoachLimitError(body?.message ?? "You've reached your coach limit for now.", body?.upgrade === true);
     }
     if (error || !data?.reply) {
       throw new Error(error?.message ?? 'The coach could not respond right now.');

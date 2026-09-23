@@ -3,6 +3,7 @@
 // and stores it in Supabase Storage.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
 
 type SphereId = 'finance' | 'health' | 'career' | 'relationships';
 type VisionStage = 0 | 1 | 2 | 3;
@@ -62,14 +63,13 @@ const REGEN_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 // earlier stages for reference/rows generated before this change.
 const FINAL_STAGE: VisionStage = 3;
 
-// Max images generated per user per UTC day (one per goal → 6 goals).
-// Enforced via consume_ai_quota (migration 0016); idempotent hits don't count.
-const DAILY_IMAGE_LIMIT = 6;
-
-// Regenerating (a second image for the same goal) is a Pro feature, so free
-// users get exactly one image per goal. There's no subscription check yet,
-// so it's off for everyone; replace with a real entitlement lookup later.
-const PRO_REGEN_ENABLED = false;
+// Images generated per user, per plan (UTC windows), enforced via
+// consume_ai_quotas (migration 0020); idempotent hits don't count. 6/day is a
+// burst guard; the monthly cap is the real ceiling.
+const IMAGE_LIMITS: Record<Plan, Limit[]> = {
+  free:   [{ limit: 6, window: 'day' }, { limit: 10, window: 'month' }],
+  beyond: [{ limit: 6, window: 'day' }, { limit: 30, window: 'month' }],
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -110,11 +110,14 @@ Deno.serve(async (req: Request) => {
   if (!goal_id) {
     return new Response(JSON.stringify({ error: 'goal_id required' }), { status: 400 });
   }
-  if (regen && !PRO_REGEN_ENABLED) {
+  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const plan = await getPlan(adminClient, user.id);
+
+  // Regenerating (a second image for the same goal) is a Beyond feature, so
+  // Free users get exactly one image per goal.
+  if (regen && plan !== 'beyond') {
     return new Response(JSON.stringify({ error: 'pro_required' }), { status: 403 });
   }
-
-  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   // Only generate for a goal the caller owns; take the sphere from the row,
   // not the request, so the client can't fan out arbitrary generations.
@@ -165,11 +168,8 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const { data: allowed, error: quotaErr } = await adminClient.rpc('consume_ai_quota', {
-      p_user_id: user.id, p_kind: 'vision:image', p_limit: DAILY_IMAGE_LIMIT,
-    });
-    if (quotaErr || allowed !== true) {
-      results.push({ goal_id, stage, status: 'pending', ...(existingRow ?? {}), error: 'daily_limit' });
+    if (await consumeQuotas(adminClient, user.id, 'vision:image', IMAGE_LIMITS[plan])) {
+      results.push({ goal_id, stage, status: 'pending', ...(existingRow ?? {}), error: 'image_limit' });
       continue;
     }
 

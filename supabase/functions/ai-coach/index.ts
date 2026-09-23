@@ -4,30 +4,41 @@
 // an LLM via the Vercel AI Gateway to reason over it. Insights and weekly
 // reflection are cached in `coach_insights`; chat replies are stateless.
 
-import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
 
 const GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions';
 const MODEL = 'anthropic/claude-sonnet-5';
 // How long a generated result is served from coach_insights before the next
 // app open regenerates it. The app requests both on every launch, so these
-// windows are what bound the automatic LLM spend.
-const CACHE_TTL_MS: Record<'insights' | 'weekly', number> = {
-  insights: 24 * 60 * 60 * 1000,    // 1 day
-  weekly: 7 * 24 * 60 * 60 * 1000,  // 1 week
+// windows are what bound the automatic LLM spend. Free insights are kept for
+// 10 days so their 3/month allowance spreads across the month.
+const CACHE_TTL_MS: Record<Plan, Record<'insights' | 'weekly', number>> = {
+  free:   { insights: 10 * 24 * 60 * 60 * 1000, weekly: 7 * 24 * 60 * 60 * 1000 },
+  beyond: { insights:      24 * 60 * 60 * 1000, weekly: 7 * 24 * 60 * 60 * 1000 },
 };
 // `force` can only bypass a cache entry at least this old, so a client can't
 // loop regenerations.
 const FORCE_MIN_AGE_MS = 15 * 60 * 1000;
 const MAX_CHAT_MESSAGE_CHARS = 1000;
 
-// Daily (UTC) LLM-call caps per user, enforced via consume_ai_quota (0016).
-// Cache hits don't count.
-const DAILY_LIMITS: Record<Mode, number> = {
-  chat: 20,
-  insights: 6,
-  weekly: 4,
-  'nudge-streak': 2,
-  'nudge-sentiment': 1,
+// LLM-call limits per plan (UTC windows), enforced via consume_ai_quotas
+// (migration 0020). Cache hits don't count.
+const LIMITS: Record<Plan, Record<Mode, Limit[]>> = {
+  free: {
+    chat:              [{ limit: 10, window: 'total' }],
+    insights:          [{ limit: 3, window: 'month' }],
+    weekly:            [{ limit: 1, window: 'week' }],
+    'nudge-streak':    [{ limit: 1, window: 'day' }],
+    'nudge-sentiment': [{ limit: 1, window: 'day' }],
+  },
+  beyond: {
+    chat:              [{ limit: 20, window: 'day' }, { limit: 150, window: 'month' }],
+    insights:          [{ limit: 1, window: 'day' }],
+    weekly:            [{ limit: 1, window: 'week' }],
+    'nudge-streak':    [{ limit: 1, window: 'day' }],
+    'nudge-sentiment': [{ limit: 1, window: 'day' }],
+  },
 };
 
 const CORS_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
@@ -42,18 +53,6 @@ function daysAgoISO(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d.toISOString().slice(0, 10);
-}
-
-// Fails closed: if the quota can't be checked, the paid call doesn't happen.
-async function consumeQuota(admin: SupabaseClient, userId: string, mode: Mode): Promise<boolean> {
-  const { data, error } = await admin.rpc('consume_ai_quota', {
-    p_user_id: userId, p_kind: `coach:${mode}`, p_limit: DAILY_LIMITS[mode],
-  });
-  if (error) {
-    console.error('consume_ai_quota failed', error.message);
-    return false;
-  }
-  return data === true;
 }
 
 async function callGateway(apiKey: string, system: string, user: string, maxTokens = 1200): Promise<string> {
@@ -117,9 +116,11 @@ Deno.serve(async (req: Request) => {
 
   const body = await req.json() as { mode: Mode; message?: string; force?: boolean };
   const { mode, message, force = false } = body;
-  if (!mode || !Object.hasOwn(DAILY_LIMITS, mode)) return json({ error: 'valid mode required' }, 400);
+  if (!mode || !Object.hasOwn(LIMITS.free, mode)) return json({ error: 'valid mode required' }, 400);
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const plan = await getPlan(adminClient, user.id);
+  const consume = () => consumeQuotas(adminClient, user.id, `coach:${mode}`, LIMITS[plan][mode]);
 
   if (mode === 'chat') {
     if (!message?.trim()) return json({ error: 'message required' }, 400);
@@ -138,10 +139,10 @@ Deno.serve(async (req: Request) => {
       .eq('kind', mode)
       .maybeSingle();
     const age = cached ? Date.now() - new Date(cached.generated_at as string).getTime() : Infinity;
-    const minAge = force ? FORCE_MIN_AGE_MS : CACHE_TTL_MS[mode];
+    const minAge = force ? FORCE_MIN_AGE_MS : CACHE_TTL_MS[plan][mode];
     if (cached && age < minAge) return json(cached);
-    if (!(await consumeQuota(adminClient, user.id, mode))) {
-      return cached ? json(cached) : json({ error: 'rate_limited', message: 'Your coach has done enough thinking for today. Check back tomorrow.' }, 429);
+    if (await consume()) {
+      return cached ? json(cached) : json({ error: 'rate_limited', message: 'Your coach has done enough thinking for now. Check back soon.' }, 429);
     }
   }
 
@@ -177,8 +178,21 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (mode === 'chat') {
-      if (!(await consumeQuota(adminClient, user.id, mode))) {
-        return json({ error: 'rate_limited', message: `You've used today's ${DAILY_LIMITS.chat} coach messages. Your coach will be back tomorrow.` }, 429);
+      const blocked = await consume();
+      if (blocked === 'error') {
+        return json({ error: 'quota_unavailable' }, 503);
+      }
+      if (blocked === 'total') {
+        return json({
+          error: 'rate_limited', upgrade: true,
+          message: "You've used your 10 free messages with your coach. Upgrade to Goalify Beyond to keep chatting.",
+        }, 429);
+      }
+      if (blocked === 'day') {
+        return json({ error: 'rate_limited', message: "You've reached today's 20 coach messages. Your coach will be back tomorrow." }, 429);
+      }
+      if (blocked) {
+        return json({ error: 'rate_limited', message: "You've used this month's 150 coach messages. They reset on the 1st." }, 429);
       }
       const chatSystem = system.replace('Respond with ONLY valid JSON, no prose outside the JSON, no markdown fences.',
         'Respond with a single short, warm, specific paragraph (2-4 sentences) as plain text, not JSON.');
@@ -235,7 +249,7 @@ Deno.serve(async (req: Request) => {
         cursor = d.toISOString().slice(0, 10);
       }
 
-      if (streak === 0 || !(await consumeQuota(adminClient, user.id, mode))) {
+      if (streak === 0 || await consume()) {
         return json({ shouldNudge: false });
       }
 
@@ -258,7 +272,7 @@ Deno.serve(async (req: Request) => {
         && recent.slice(0, 3).every((entry, i, arr) => i === 0 || entry.sentiment >= arr[i - 1].sentiment)
         && recent[0].sentiment < -0.1;
 
-      if (!trendingDown || !(await consumeQuota(adminClient, user.id, mode))) {
+      if (!trendingDown || await consume()) {
         return json({ shouldNudge: false });
       }
 
