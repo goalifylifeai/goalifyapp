@@ -25,8 +25,16 @@ export type WeeklyReflection = {
   next_step: CoachNextStep;
 };
 
+/** Thrown by askCoach when a chat limit is reached. `upgrade` is true when
+ *  the Free allowance is used up, i.e. the place to offer Goalify Beyond. */
+export class CoachLimitError extends Error {
+  constructor(message: string, readonly upgrade = false) { super(message); }
+}
+
 type CoachAiContextValue = {
   insights: CoachInsight[] | null;
+  /** When the current insights were generated (ISO), or null if none yet. */
+  insightsUpdatedAt: string | null;
   insightsLoading: boolean;
   weekly: WeeklyReflection | null;
   weeklyLoading: boolean;
@@ -40,6 +48,7 @@ const CoachAiContext = createContext<CoachAiContextValue | null>(null);
 export function CoachAiProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [insights, setInsights] = useState<CoachInsight[] | null>(null);
+  const [insightsUpdatedAt, setInsightsUpdatedAt] = useState<string | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [weekly, setWeekly] = useState<WeeklyReflection | null>(null);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
@@ -55,6 +64,7 @@ export function CoachAiProvider({ children }: { children: ReactNode }) {
       .then(({ data, error }) => {
         if (error || !data) return;
         setInsights((data.content?.insights ?? null) as CoachInsight[] | null);
+        setInsightsUpdatedAt((data.generated_at ?? null) as string | null);
       })
       .finally(() => setInsightsLoading(false));
   }, [user, invoke]);
@@ -72,6 +82,12 @@ export function CoachAiProvider({ children }: { children: ReactNode }) {
 
   const askCoach = useCallback(async (message: string): Promise<string> => {
     const { data, error } = await invoke('chat', { message });
+    // Non-2xx responses carry the Response on `error.context`.
+    const res = (error as { context?: Response } | null)?.context;
+    if (res?.status === 429) {
+      const body = await res.json().catch(() => null) as { message?: string; upgrade?: boolean } | null;
+      throw new CoachLimitError(body?.message ?? "You've reached your coach limit for now.", body?.upgrade === true);
+    }
     if (error || !data?.reply) {
       throw new Error(error?.message ?? 'The coach could not respond right now.');
     }
@@ -79,15 +95,15 @@ export function CoachAiProvider({ children }: { children: ReactNode }) {
   }, [invoke]);
 
   useEffect(() => {
-    if (!user) { setInsights(null); setWeekly(null); return; }
+    if (!user) { setInsights(null); setInsightsUpdatedAt(null); setWeekly(null); return; }
     refreshInsights();
     refreshWeekly();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const value = useMemo<CoachAiContextValue>(() => ({
-    insights, insightsLoading, weekly, weeklyLoading, refreshInsights, refreshWeekly, askCoach,
-  }), [insights, insightsLoading, weekly, weeklyLoading, refreshInsights, refreshWeekly, askCoach]);
+    insights, insightsUpdatedAt, insightsLoading, weekly, weeklyLoading, refreshInsights, refreshWeekly, askCoach,
+  }), [insights, insightsUpdatedAt, insightsLoading, weekly, weeklyLoading, refreshInsights, refreshWeekly, askCoach]);
 
   return <CoachAiContext.Provider value={value}>{children}</CoachAiContext.Provider>;
 }

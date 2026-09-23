@@ -20,7 +20,7 @@ jest.mock('../lib/bootstrap', () => ({ bootstrapUserData: jest.fn().mockResolved
 jest.mock('../lib/offline-queue', () => ({ enqueue: jest.fn(), drainQueue: jest.fn() }));
 
 import { appReducer, initialState, type AppAction, type AppState } from '../store';
-import { GOALS, HABITS, TODAY_ACTIONS, JOURNAL } from '../constants/data';
+import { GOALS, HABITS, TODAY_ACTIONS, JOURNAL } from './fixtures/demo-data';
 
 // ── Helpers ───────────────────────────────────────────────────────
 function state(): AppState {

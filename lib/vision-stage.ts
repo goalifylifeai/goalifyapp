@@ -1,5 +1,8 @@
 export type VisionStage = 0 | 1 | 2 | 3;
 
+/** The only stage generated and shown: the "arrived" scene for the goal. */
+export const FINAL_STAGE: VisionStage = 3;
+
 export function stageFromProgress(progress: number): VisionStage {
   if (progress < 0.25) return 0;
   if (progress < 0.50) return 1;

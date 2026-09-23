@@ -167,6 +167,44 @@ describe('usePersistentStore', () => {
     );
   });
 
+  it('enqueues a journal entry (with full body) when Supabase resolves with an error', async () => {
+    const { supabase, queueMock } = getMocks();
+    supabase.from.mockReturnValue({
+      // supabase-js resolves with { error } on Postgres errors rather than rejecting.
+      upsert: jest.fn().mockResolvedValue({ error: { message: 'invalid input syntax for type smallint' } }),
+      select: jest.fn(() => ({
+        order: jest.fn().mockResolvedValue({ data: [], error: null }),
+        gte: jest.fn(() => ({ order: jest.fn().mockResolvedValue({ data: [], error: null }) })),
+      })),
+    });
+
+    const { result } = renderHook(() => usePersistentStore());
+
+    await act(async () => {
+      for (const cb of mockAuthCallbacks) {
+        await cb('SIGNED_IN', { user: { id: 'user-abc' } });
+      }
+    });
+
+    act(() => {
+      result.current.dispatch({
+        type: 'ADD_JOURNAL',
+        entry: { id: 'j1', date: '2026-05-11', sentiment: 0.33, excerpt: 'Good day', body: 'Good day, long version' },
+      } as AppAction);
+    });
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
+    expect(queueMock.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        table: 'journal_entries',
+        payload: expect.objectContaining({ sentiment: 0.33, body: 'Good day, long version' }),
+      }),
+    );
+  });
+
   it('does not enqueue when user is signed out', async () => {
     const { queueMock } = getMocks();
     const { result } = renderHook(() => usePersistentStore());

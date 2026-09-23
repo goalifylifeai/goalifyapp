@@ -48,6 +48,13 @@ async function writeCache(state: AppState): Promise<void> {
   }
 }
 
+// supabase-js resolves (not rejects) on HTTP/Postgres errors. Throw so the
+// caller falls back to the offline queue instead of silently losing the write.
+async function check(req: PromiseLike<{ error: unknown } | null | undefined>): Promise<void> {
+  const res = await req;
+  if (res?.error) throw res.error;
+}
+
 // Maps an AppAction to the Supabase upsert/delete call.
 // Returns a QueueItem on failure so the caller can enqueue it.
 async function syncAction(action: AppAction, state: AppState, userId: string): Promise<void> {
@@ -58,8 +65,8 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
     case 'TOGGLE_SUBTASK':
     case 'ADD_SUBTASK': {
       if (action.type === 'REMOVE_GOAL') {
-        await supabase.from('goal_subtasks').delete().eq('goal_id', action.goalId);
-        await supabase.from('goals').delete().eq('id', action.goalId);
+        await check(supabase.from('goal_subtasks').delete().eq('goal_id', action.goalId));
+        await check(supabase.from('goals').delete().eq('id', action.goalId));
         break;
       }
 
@@ -68,10 +75,10 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
         const goal = action.type === 'ADD_GOAL' ? action.goal : state.goals.find(g => g.id === goalId);
         if (!goal) return;
 
-        await supabase.from('goals').upsert(
+        await check(supabase.from('goals').upsert(
           { id: goal.id, user_id: userId, sphere: goal.sphere, title: goal.title, due_date: goal.due || null },
           { onConflict: 'id' },
-        );
+        ));
         
         // Sync subtasks
         const subtasks = goal.sub.map((s, i) => ({
@@ -83,7 +90,7 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
           sort_order: i,
         }));
         
-        await supabase.from('goal_subtasks').upsert(subtasks, { onConflict: 'id' });
+        await check(supabase.from('goal_subtasks').upsert(subtasks, { onConflict: 'id' }));
       } else {
         // Sync all subtasks for the affected goal
         const goalId = action.goalId;
@@ -97,27 +104,27 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
           done: s.done,
           sort_order: i,
         }));
-        await supabase.from('goal_subtasks').upsert(subtasks, { onConflict: 'id' });
+        await check(supabase.from('goal_subtasks').upsert(subtasks, { onConflict: 'id' }));
       }
       break;
     }
 
     case 'ADD_HABIT': {
       const h = action.habit;
-      await supabase.from('habits').upsert(
+      await check(supabase.from('habits').upsert(
         { id: h.id, user_id: userId, label: h.label, icon: h.icon, sphere: h.sphere, target_description: h.target },
         { onConflict: 'id' },
-      );
+      ));
       break;
     }
 
     case 'SET_HABIT_CALENDAR_ID': {
-      await supabase.from('habits').update({ calendar_event_id: action.calendarEventId }).eq('id', action.id).eq('user_id', userId);
+      await check(supabase.from('habits').update({ calendar_event_id: action.calendarEventId }).eq('id', action.id).eq('user_id', userId));
       break;
     }
 
     case 'SET_HABIT_REMINDER': {
-      await supabase.from('habits').update({ reminder_hour: action.hour, reminder_minute: action.minute }).eq('id', action.id).eq('user_id', userId);
+      await check(supabase.from('habits').update({ reminder_hour: action.hour, reminder_minute: action.minute }).eq('id', action.id).eq('user_id', userId));
       break;
     }
 
@@ -126,19 +133,19 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
       if (!habit) return;
       const today = localDateISO();
       const logId = `${action.id}:${today}`;
-      await supabase.from('habit_logs').upsert(
+      await check(supabase.from('habit_logs').upsert(
         { id: logId, habit_id: action.id, user_id: userId, date: today, done: habit.doneToday },
         { onConflict: 'habit_id,date' },
-      );
+      ));
       break;
     }
 
     case 'ADD_JOURNAL': {
       const e = action.entry;
-      await supabase.from('journal_entries').upsert(
-        { id: e.id, user_id: userId, date: e.date, sentiment: e.sentiment, excerpt: e.excerpt },
+      await check(supabase.from('journal_entries').upsert(
+        { id: e.id, user_id: userId, date: e.date, sentiment: e.sentiment, excerpt: e.excerpt, body: e.body ?? null },
         { onConflict: 'id' },
-      );
+      ));
       break;
     }
 
@@ -274,7 +281,7 @@ function actionToQueueItems(action: AppAction, state: AppState, userId: string):
         id: `journal:${e.id}`,
         table: 'journal_entries',
         operation: 'upsert',
-        payload: { id: e.id, user_id: userId, date: e.date, sentiment: e.sentiment, excerpt: e.excerpt },
+        payload: { id: e.id, user_id: userId, date: e.date, sentiment: e.sentiment, excerpt: e.excerpt, body: e.body ?? null },
         created_at: now,
         retries: 0,
       });

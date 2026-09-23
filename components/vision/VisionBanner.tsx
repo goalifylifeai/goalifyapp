@@ -7,21 +7,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { SphereId } from '../../constants/theme';
 import { F } from '../ui';
 import { useVisionAssets } from '../../store/vision';
-import { stageFromProgress } from '../../lib/vision-stage';
+import { FINAL_STAGE } from '../../lib/vision-stage';
 
 type Props = {
   goalId: string;
   goalTitle: string;
   sphere: SphereId;
-  progress: number;
   caption: string;
   fallbackColors: [string, string];
   onPress: () => void;
 };
 
-export function VisionBanner({ goalId, goalTitle, sphere, progress, caption, fallbackColors, onPress }: Props) {
+export function VisionBanner({ goalId, goalTitle, sphere, caption, fallbackColors, onPress }: Props) {
   const { getAsset, getSignedUrl, requestGeneration, isGenerating } = useVisionAssets();
-  const stage = stageFromProgress(progress);
+  const stage = FINAL_STAGE;
   const asset = getAsset(goalId, stage);
   const signedUrl = getSignedUrl(goalId, stage);
 

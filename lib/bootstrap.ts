@@ -52,6 +52,7 @@ function toJournalEntry(row: JournalEntryRow): JournalEntry {
     date: row.date,
     sentiment: row.sentiment,
     excerpt: row.excerpt,
+    body: row.body ?? undefined,
   };
 }
 

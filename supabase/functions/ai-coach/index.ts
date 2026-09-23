@@ -5,10 +5,49 @@
 // reflection are cached in `coach_insights`; chat replies are stateless.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
 
 const GATEWAY_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions';
-const MODEL = 'anthropic/claude-sonnet-5';
-const CACHE_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
+// Gemini 3 Flash keeps a max-usage Goalify Beyond user at ~$0.83/month against
+// ~$3.39 net revenue (see docs/superpowers/specs/2026-09-23-paid-tiers-user-behaviour.md).
+const MODEL = 'google/gemini-3-flash';
+// How long a generated result is served from coach_insights before the next
+// app open regenerates it. The app requests both on every launch, so these
+// windows are what bound the automatic LLM spend. Free insights are kept for
+// 10 days so their 3/month allowance spreads across the month.
+const CACHE_TTL_MS: Record<Plan, Record<'insights' | 'weekly', number>> = {
+  free:   { insights: 10 * 24 * 60 * 60 * 1000, weekly: 7 * 24 * 60 * 60 * 1000 },
+  beyond: { insights:      24 * 60 * 60 * 1000, weekly: 7 * 24 * 60 * 60 * 1000 },
+};
+// `force` can only bypass a cache entry at least this old, so a client can't
+// loop regenerations.
+const FORCE_MIN_AGE_MS = 15 * 60 * 1000;
+const MAX_CHAT_MESSAGE_CHARS = 1000;
+
+// LLM-call limits per plan (UTC windows), enforced via consume_ai_quotas
+// (migration 0020). Cache hits don't count.
+const LIMITS: Record<Plan, Record<Mode, Limit[]>> = {
+  free: {
+    chat:              [{ limit: 10, window: 'total' }],
+    insights:          [{ limit: 3, window: 'month' }],
+    weekly:            [{ limit: 1, window: 'week' }],
+    'nudge-streak':    [{ limit: 1, window: 'day' }],
+    'nudge-sentiment': [{ limit: 1, window: 'day' }],
+  },
+  beyond: {
+    chat:              [{ limit: 20, window: 'day' }, { limit: 150, window: 'month' }],
+    insights:          [{ limit: 1, window: 'day' }],
+    weekly:            [{ limit: 1, window: 'week' }],
+    'nudge-streak':    [{ limit: 1, window: 'day' }],
+    'nudge-sentiment': [{ limit: 1, window: 'day' }],
+  },
+};
+
+const CORS_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS });
+}
 
 type Mode = 'insights' | 'weekly' | 'chat' | 'nudge-streak' | 'nudge-sentiment';
 
@@ -18,7 +57,7 @@ function daysAgoISO(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function callGateway(apiKey: string, system: string, user: string): Promise<string> {
+async function callGateway(apiKey: string, system: string, user: string, maxTokens = 1200): Promise<string> {
   const res = await fetch(GATEWAY_URL, {
     method: 'POST',
     headers: {
@@ -28,7 +67,7 @@ async function callGateway(apiKey: string, system: string, user: string): Promis
     body: JSON.stringify({
       model: MODEL,
       temperature: 0.6,
-      max_tokens: 1200,
+      max_tokens: maxTokens,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -79,24 +118,33 @@ Deno.serve(async (req: Request) => {
 
   const body = await req.json() as { mode: Mode; message?: string; force?: boolean };
   const { mode, message, force = false } = body;
-  if (!mode) return new Response(JSON.stringify({ error: 'mode required' }), { status: 400 });
+  if (!mode || !Object.hasOwn(LIMITS.free, mode)) return json({ error: 'valid mode required' }, 400);
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const plan = await getPlan(adminClient, user.id);
+  const consume = () => consumeQuotas(adminClient, user.id, `coach:${mode}`, LIMITS[plan][mode]);
 
-  // Serve cached content for insights/weekly if fresh enough.
+  if (mode === 'chat') {
+    if (!message?.trim()) return json({ error: 'message required' }, 400);
+    if (message.length > MAX_CHAT_MESSAGE_CHARS) {
+      return json({ error: 'message_too_long', message: `Keep questions under ${MAX_CHAT_MESSAGE_CHARS} characters.` }, 400);
+    }
+  }
+
+  // Serve cached content for insights/weekly if fresh enough, and fall back to
+  // it (however old) once the daily generation quota is spent.
   if (mode === 'insights' || mode === 'weekly') {
-    if (!force) {
-      const { data: cached } = await adminClient
-        .from('coach_insights')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('kind', mode)
-        .maybeSingle();
-      if (cached && Date.now() - new Date(cached.generated_at as string).getTime() < CACHE_COOLDOWN_MS) {
-        return new Response(JSON.stringify(cached), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
-      }
+    const { data: cached } = await adminClient
+      .from('coach_insights')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('kind', mode)
+      .maybeSingle();
+    const age = cached ? Date.now() - new Date(cached.generated_at as string).getTime() : Infinity;
+    const minAge = force ? FORCE_MIN_AGE_MS : CACHE_TTL_MS[plan][mode];
+    if (cached && age < minAge) return json(cached);
+    if (await consume()) {
+      return cached ? json(cached) : json({ error: 'rate_limited', message: 'Your coach has done enough thinking for now. Check back soon.' }, 429);
     }
   }
 
@@ -107,7 +155,7 @@ Deno.serve(async (req: Request) => {
     adminClient.from('goal_subtasks').select('goal_id,text,done').eq('user_id', user.id),
     adminClient.from('habits').select('id,label,sphere,target_description').eq('user_id', user.id),
     adminClient.from('habit_logs').select('habit_id,date,done').eq('user_id', user.id).gte('date', since),
-    adminClient.from('journal_entries').select('date,sentiment,excerpt').eq('user_id', user.id).gte('date', since).order('date', { ascending: false }).limit(30),
+    adminClient.from('journal_entries').select('date,sentiment,excerpt').eq('user_id', user.id).gte('date', since).order('date', { ascending: false }).order('created_at', { ascending: false }).limit(30),
   ]);
 
   const context = {
@@ -132,13 +180,29 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (mode === 'chat') {
-      if (!message?.trim()) return new Response(JSON.stringify({ error: 'message required' }), { status: 400 });
+      const blocked = await consume();
+      if (blocked === 'error') {
+        return json({ error: 'quota_unavailable' }, 503);
+      }
+      if (blocked === 'total') {
+        return json({
+          error: 'rate_limited', upgrade: true,
+          message: "You've used your 10 free messages with your coach. Upgrade to Goalify Beyond to keep chatting.",
+        }, 429);
+      }
+      if (blocked === 'day') {
+        return json({ error: 'rate_limited', message: "You've reached today's 20 coach messages. Your coach will be back tomorrow." }, 429);
+      }
+      if (blocked) {
+        return json({ error: 'rate_limited', message: "You've used this month's 150 coach messages. They reset on the 1st." }, 429);
+      }
       const chatSystem = system.replace('Respond with ONLY valid JSON, no prose outside the JSON, no markdown fences.',
         'Respond with a single short, warm, specific paragraph (2-4 sentences) as plain text, not JSON.');
       const reply = await callGateway(
         AI_GATEWAY_API_KEY,
         chatSystem,
-        `User's data:\n${JSON.stringify(context)}\n\nUser's question: ${message.trim()}`,
+        `User's data:\n${JSON.stringify(context)}\n\nUser's question: ${message!.trim()}`,
+        400,
       );
       return new Response(JSON.stringify({ reply: reply.trim() }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
@@ -187,10 +251,8 @@ Deno.serve(async (req: Request) => {
         cursor = d.toISOString().slice(0, 10);
       }
 
-      if (streak === 0) {
-        return new Response(JSON.stringify({ shouldNudge: false }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+      if (streak === 0 || await consume()) {
+        return json({ shouldNudge: false });
       }
 
       const prompt = `The user has a ${streak}-day streak of showing up for their daily ritual, and has not yet completed today's must-do action. Return JSON: { "title": string (max 40 chars), "body": string (max 100 chars) } — a warm, specific, non-guilt-tripping evening nudge that mentions the streak and encourages finishing today's must-do.`;
@@ -205,16 +267,15 @@ Deno.serve(async (req: Request) => {
     if (mode === 'nudge-sentiment') {
       const recent = context.journal_last_30_days.slice(0, 5) as { date: string; sentiment: number }[];
 
-      // Require at least 3 entries, and a monotonically non-increasing trend
-      // (most-recent-first) with the latest entry clearly low, before nudging.
+      // Require at least 3 entries getting steadily lower over time, with the
+      // latest clearly low. `recent` is newest-first, so each older entry must
+      // be >= the one after it.
       const trendingDown = recent.length >= 3
-        && recent.slice(0, 3).every((entry, i, arr) => i === 0 || entry.sentiment <= arr[i - 1].sentiment)
+        && recent.slice(0, 3).every((entry, i, arr) => i === 0 || entry.sentiment >= arr[i - 1].sentiment)
         && recent[0].sentiment < -0.1;
 
-      if (!trendingDown) {
-        return new Response(JSON.stringify({ shouldNudge: false }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+      if (!trendingDown || await consume()) {
+        return json({ shouldNudge: false });
       }
 
       const prompt = `The user's last 3 journal entries have trended toward lower sentiment (most recent first): ${JSON.stringify(recent.slice(0, 3))}. Return JSON: { "title": string (max 40 chars), "body": string (max 100 chars) } — a gentle, non-clinical check-in nudge. Never diagnose or use clinical language; just invite them to check in.`;

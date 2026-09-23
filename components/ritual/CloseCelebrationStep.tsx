@@ -3,7 +3,7 @@ import { View, Text, Animated, Share, TouchableOpacity, ActivityIndicator, Scrol
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPHERE_COLORS, type SphereId } from '../../constants/theme';
 import { F } from '../ui';
-import { USER, SPHERE_SCORES } from '../../constants/data';
+import { useDailyRitual } from '../../store/daily-ritual';
 
 interface Props {
   sphere: SphereId;
@@ -12,14 +12,13 @@ interface Props {
   error: string | null;
 }
 
-const BASE_STREAK = USER.streak;
-const SPHERE_GAIN = 3;
-
 export function CloseCelebrationStep({ sphere, journalLine, saving, error }: Props) {
   const s = SPHERE_COLORS[sphere];
   const streakAnim = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
-  const [displayStreak, setDisplayStreak] = useState(BASE_STREAK);
+  // Real streak (today is included once the close has saved).
+  const { streak } = useDailyRitual();
+  const [displayStreak, setDisplayStreak] = useState(0);
 
   useEffect(() => {
     if (saving) return;
@@ -31,10 +30,10 @@ export function CloseCelebrationStep({ sphere, journalLine, saving, error }: Pro
     ]).start();
 
     const id = streakAnim.addListener(({ value }) => {
-      setDisplayStreak(Math.round(BASE_STREAK + value));
+      setDisplayStreak(Math.round(streak * value));
     });
     return () => streakAnim.removeListener(id);
-  }, [saving]);
+  }, [saving, streak]);
 
   const handleShare = async () => {
     const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
@@ -42,7 +41,7 @@ export function CloseCelebrationStep({ sphere, journalLine, saving, error }: Pro
       `Goalify · ${dateStr}`,
       `${s.glyph} ${s.label} focus`,
       journalLine ? `"${journalLine}"` : '',
-      `${BASE_STREAK + 1} day streak`,
+      `${streak} day streak`,
       '— closed with intention',
     ].filter(Boolean).join('\n');
 
@@ -82,14 +81,9 @@ export function CloseCelebrationStep({ sphere, journalLine, saving, error }: Pro
             </Text>
             <Text style={{ fontFamily: F.mono, fontSize: 16, color: 'rgba(244,239,230,0.55)' }}>days</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontFamily: F.mono, fontSize: 10, color: 'rgba(244,239,230,0.55)' }}>
-              {s.glyph} {s.label}
-            </Text>
-            <Text style={{ fontFamily: F.mono, fontSize: 10, color: s.soft }}>
-              +{SPHERE_GAIN} pts
-            </Text>
-          </View>
+          <Text style={{ fontFamily: F.mono, fontSize: 10, color: 'rgba(244,239,230,0.55)' }}>
+            {s.glyph} {s.label}
+          </Text>
         </View>
 
         {/* Journal echo */}

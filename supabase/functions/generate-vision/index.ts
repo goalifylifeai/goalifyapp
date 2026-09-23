@@ -1,7 +1,9 @@
 // Supabase Edge Function (Deno runtime)
-// Generates 4 vision images per goal via fal.ai and stores them in Supabase Storage.
+// Generates one vision image per goal (the final "arriving" stage) via fal.ai
+// and stores it in Supabase Storage.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
 
 type SphereId = 'finance' | 'health' | 'career' | 'relationships';
 type VisionStage = 0 | 1 | 2 | 3;
@@ -57,6 +59,17 @@ function seedFromGoalId(goalId: string): number {
 }
 
 const REGEN_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+// Only the final stage is generated — one image per goal. SCENES keeps the
+// earlier stages for reference/rows generated before this change.
+const FINAL_STAGE: VisionStage = 3;
+
+// Images generated per user, per plan (UTC windows), enforced via
+// consume_ai_quotas (migration 0020); idempotent hits don't count. 6/day is a
+// burst guard; the monthly cap is the real ceiling.
+const IMAGE_LIMITS: Record<Plan, Limit[]> = {
+  free:   [{ limit: 6, window: 'day' }, { limit: 10, window: 'month' }],
+  beyond: [{ limit: 6, window: 'day' }, { limit: 30, window: 'month' }],
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -91,17 +104,35 @@ Deno.serve(async (req: Request) => {
     goal_title: string;
     sphere: SphereId;
     regen?: boolean;
-    regen_stage?: VisionStage;
   };
 
-  const { goal_id, sphere, regen = false, regen_stage } = body;
-  if (!goal_id || !sphere) {
-    return new Response(JSON.stringify({ error: 'goal_id and sphere required' }), { status: 400 });
+  const { goal_id, regen = false } = body;
+  if (!goal_id) {
+    return new Response(JSON.stringify({ error: 'goal_id required' }), { status: 400 });
+  }
+  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const plan = await getPlan(adminClient, user.id);
+
+  // Regenerating (a second image for the same goal) is a Beyond feature, so
+  // Free users get exactly one image per goal.
+  if (regen && plan !== 'beyond') {
+    return new Response(JSON.stringify({ error: 'pro_required' }), { status: 403 });
   }
 
-  const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  // Only generate for a goal the caller owns; take the sphere from the row,
+  // not the request, so the client can't fan out arbitrary generations.
+  const { data: goalRow } = await adminClient
+    .from('goals')
+    .select('sphere')
+    .eq('id', goal_id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!goalRow) {
+    return new Response(JSON.stringify({ error: 'goal not found' }), { status: 404 });
+  }
+  const sphere = goalRow.sphere as SphereId;
   const seed = seedFromGoalId(goal_id);
-  const stages: VisionStage[] = regen && regen_stage !== undefined ? [regen_stage] : [0, 1, 2, 3];
+  const stages: VisionStage[] = [FINAL_STAGE];
 
   // Load existing rows to check idempotency and rate limits.
   const { data: existing } = await adminClient
@@ -128,13 +159,18 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    // Rate limit for regens (free tier: 7-day cooldown).
+    // Rate limit for regens (7-day cooldown per image).
     if (regen && existingRow?.last_regen_at) {
       const lastRegen = new Date(existingRow.last_regen_at as string).getTime();
       if (Date.now() - lastRegen < REGEN_COOLDOWN_MS) {
         results.push({ ...(existingRow ?? {}), error: 'regen_rate_limited' });
         continue;
       }
+    }
+
+    if (await consumeQuotas(adminClient, user.id, 'vision:image', IMAGE_LIMITS[plan])) {
+      results.push({ goal_id, stage, status: 'pending', ...(existingRow ?? {}), error: 'image_limit' });
+      continue;
     }
 
     // Mark as generating.

@@ -93,6 +93,7 @@ export type JournalEntryRow = {
   date: string;
   sentiment: number;
   excerpt: string;
+  body: string | null;
   created_at: string;
   updated_at: string;
 };

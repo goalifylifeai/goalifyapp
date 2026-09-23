@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { ScrollView, View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
-import { SENTIMENT } from '../../constants/data';
 import { SectionLabel, Card, SentimentChart, F } from '../../components/ui';
 import { useStore } from '../../store';
 import { newId } from '../../lib/id';
 import { requestSentimentCheckIn } from '../../lib/nudges';
 import { localDateISO, formatDisplayDate } from '../../lib/date';
+import { sentimentSummary } from '../../lib/journal-stats';
 
 function roughSentiment(text: string): number {
   const positive = /\b(good|great|proud|happy|steady|moved|shipped|win|better|love|calm|grateful|strong|joy|excited)\b/gi;
@@ -22,11 +22,20 @@ export default function JournalScreen() {
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
   const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const visibleEntries = state.journal.filter(j => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
-    return j.excerpt.toLowerCase().includes(q);
+    return (j.body ?? j.excerpt).toLowerCase().includes(q);
+  });
+
+  const { avg, delta, series } = sentimentSummary(state.journal, localDateISO());
+
+  const toggleExpanded = (id: string) => setExpanded(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
   });
 
   const saveEntry = () => {
@@ -39,6 +48,7 @@ export default function JournalScreen() {
         date: localDateISO(),
         sentiment: roughSentiment(text),
         excerpt: text.length > 140 ? text.slice(0, 138) + '…' : text,
+        body: text,
       },
     });
     setDraft('');
@@ -64,36 +74,39 @@ export default function JournalScreen() {
       <SectionLabel action="30 days">Emotional trend</SectionLabel>
       <View style={{ paddingHorizontal: 22 }}>
         <Card pad={18}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 6 }}>
-            <View>
+          {avg === null ? (
+            <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink3, lineHeight: 19 }}>
+              Your emotional trend will appear here once you've written a few entries.
+            </Text>
+          ) : (
+            <>
               <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: COLORS.ink3 }}>Avg sentiment</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-                <Text style={{ fontFamily: F.display, fontSize: 36, color: COLORS.ink1, lineHeight: 40 }}>+0.34</Text>
-                <Text style={{ fontFamily: F.mono, fontSize: 11, color: SPHERE_COLORS.finance.accent, letterSpacing: 0.5 }}>↑ 18%</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 6, marginBottom: 6 }}>
+                <Text style={{ fontFamily: F.display, fontSize: 36, color: COLORS.ink1, lineHeight: 40 }}>
+                  {avg >= 0 ? '+' : '−'}{Math.abs(avg).toFixed(2)}
+                </Text>
+                {delta !== null && Math.abs(delta) >= 0.01 && (
+                  <Text style={{ fontFamily: F.mono, fontSize: 11, color: delta >= 0 ? SPHERE_COLORS.finance.accent : SPHERE_COLORS.health.accent, letterSpacing: 0.5 }}>
+                    {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(2)} vs prior 30 days
+                  </Text>
+                )}
               </View>
-            </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 1.5, textTransform: 'uppercase' }}>Highest</Text>
-              <Text style={{ fontFamily: undefined, fontSize: 13, color: COLORS.ink1, marginTop: 4, fontWeight: '500' }}>Career</Text>
-            </View>
-          </View>
-          <SentimentChart data={SENTIMENT} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-            {['Apr 10', 'Apr 25', 'May 9'].map(d => (
-              <Text key={d} style={{ fontFamily: F.mono, fontSize: 9, color: COLORS.ink4, letterSpacing: 1.5, textTransform: 'uppercase' }}>{d}</Text>
-            ))}
-          </View>
-        </Card>
-      </View>
-
-      {/* AI synthesis */}
-      <SectionLabel>This week, in patterns</SectionLabel>
-      <View style={{ paddingHorizontal: 22 }}>
-        <Card pad={20} style={{ backgroundColor: COLORS.ink1 }}>
-          <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: 'rgba(244,239,230,0.6)' }}>✦ AI synthesis</Text>
-          <Text style={{ fontFamily: F.displayItalic, fontSize: 17, lineHeight: 24, marginTop: 10, color: COLORS.paper, letterSpacing: -0.1 }}>
-            Career writing has gotten warmer; relationships, quieter. There's a soft signal here — when the work is going well, you reach out less.
-          </Text>
+              {series.length >= 2 ? (
+                <>
+                  <SentimentChart data={series.map(p => p.value)} />
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                    {[series[0].date, series[series.length - 1].date].map(d => (
+                      <Text key={d} style={{ fontFamily: F.mono, fontSize: 9, color: COLORS.ink4, letterSpacing: 1.5, textTransform: 'uppercase' }}>{formatDisplayDate(d)}</Text>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 4 }}>
+                  Write on another day to see the trend line.
+                </Text>
+              )}
+            </>
+          )}
         </Card>
       </View>
 
@@ -178,10 +191,12 @@ export default function JournalScreen() {
           </Text>
         )}
         {visibleEntries.map(j => {
+          const isOpen = expanded.has(j.id);
           const sentColor = j.sentiment >= 0 ? SPHERE_COLORS.finance.accent : SPHERE_COLORS.health.accent;
           const sentLabel = j.sentiment > 0.5 ? 'bright' : j.sentiment > 0 ? 'gentle' : j.sentiment > -0.3 ? 'tender' : 'heavy';
           return (
-            <Card key={j.id} pad={18}>
+            <TouchableOpacity key={j.id} activeOpacity={0.8} onPress={() => toggleExpanded(j.id)}>
+            <Card pad={18}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3, letterSpacing: 0.5 }}>{formatDisplayDate(j.date)}</Text>
                 <View style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -189,8 +204,11 @@ export default function JournalScreen() {
                   <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>{sentLabel}</Text>
                 </View>
               </View>
-              <Text style={{ fontFamily: F.displayItalic, fontSize: 16, lineHeight: 23, color: COLORS.ink1, letterSpacing: -0.1 }}>{j.excerpt}</Text>
+              <Text numberOfLines={isOpen ? undefined : 5} style={{ fontFamily: F.displayItalic, fontSize: 16, lineHeight: 23, color: COLORS.ink1, letterSpacing: -0.1 }}>
+                {j.body ?? j.excerpt}
+              </Text>
             </Card>
+            </TouchableOpacity>
           );
         })}
       </View>

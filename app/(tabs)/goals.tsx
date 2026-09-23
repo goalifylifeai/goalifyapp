@@ -3,7 +3,7 @@ import { ScrollView, View, Text, TouchableOpacity, TextInput, Alert, Platform } 
 import { router, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
-import { SPHERE_LIST, VISION_CAPTIONS } from '../../constants/data';
+import { SPHERE_LIST, SPHERE_VISION_CAPTIONS, SPHERE_VISION_TONES } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Bar, Check, Pill, F } from '../../components/ui';
 import { VisionBanner } from '../../components/vision/VisionBanner';
 import { HabitPromptModal } from '../../components/HabitPromptModal';
@@ -12,15 +12,6 @@ import type { Goal } from '../../store';
 import type { SphereId } from '../../constants/theme';
 import { newId } from '../../lib/id';
 import { localDateISO, formatDisplayDate } from '../../lib/date';
-
-const VISION_TONES: Record<string, [string, string]> = {
-  g1: ['#E8D5C5', '#C4A593'],
-  g2: ['#E8E2D5', '#C9C0AE'],
-  g3: ['#D8DEE0', '#A0AAAE'],
-  g4: ['#E8D8DC', '#BB9BA0'],
-};
-
-const DEFAULT_TONE: [string, string] = ['#E8E2D5', '#C9C0AE'];
 
 export default function GoalsScreen() {
   const { state, dispatch } = useStore();
@@ -341,8 +332,8 @@ export default function GoalsScreen() {
 
           const s = SPHERE_COLORS[g.sphere];
           const done = g.sub.filter(x => x.done).length;
-          const tone = VISION_TONES[g.id] ?? DEFAULT_TONE;
-          const caption = VISION_CAPTIONS[g.id] ?? '';
+          const tone = SPHERE_VISION_TONES[g.sphere];
+          const caption = SPHERE_VISION_CAPTIONS[g.sphere];
 
           return (
             <Card key={g.id} pad={0} style={{ overflow: 'hidden' }}>
@@ -350,7 +341,6 @@ export default function GoalsScreen() {
                 goalId={g.id}
                 goalTitle={g.title}
                 sphere={g.sphere}
-                progress={g.progress}
                 caption={caption}
                 fallbackColors={tone}
                 onPress={() => router.push(`/vision/${g.id}` as any)}
