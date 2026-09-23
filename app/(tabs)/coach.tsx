@@ -9,6 +9,10 @@ import { VisionBanner } from '../../components/vision/VisionBanner';
 import { useStore } from '../../store';
 import { useFutureSelf, type FutureLetter, type FutureLetterHorizon } from '../../store/future-self';
 import { useCoachAi, CoachLimitError } from '../../store/coach-ai';
+import { usePlan } from '../../store/plan';
+import { openPaywall } from '../../lib/paywall';
+import { showInsightsUpsell } from '../../lib/coach-upsell';
+import { PAID_PLAN_NAME } from '../../constants/brand';
 
 type CoachTab = 'insights' | 'weekly' | 'vision' | 'future';
 
@@ -53,7 +57,8 @@ export default function CoachScreen() {
 
 function CoachInsights() {
   const { state, dispatch } = useStore();
-  const { insights, insightsLoading, askCoach } = useCoachAi();
+  const { insights, insightsLoading, insightsUpdatedAt, refreshInsights, askCoach } = useCoachAi();
+  const { plan } = usePlan();
   const [reply, setReply] = useState('');
   const [asking, setAsking] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -70,6 +75,7 @@ function CoachInsights() {
       .catch(err => dispatch({
         type: 'ADD_COACH_REPLY',
         text: err instanceof CoachLimitError ? err.message : "I couldn't reach your coach just now — try again in a moment.",
+        upgrade: err instanceof CoachLimitError && err.upgrade,
       }))
       .finally(() => {
         setAsking(false);
@@ -99,6 +105,13 @@ function CoachInsights() {
             </Card>
           );
         })}
+        {showInsightsUpsell(plan, insightsUpdatedAt, new Date()) && (
+          <TouchableOpacity onPress={() => openPaywall('insights', () => refreshInsights())}>
+            <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: COLORS.ink3, textAlign: 'center', paddingVertical: 6 }}>
+              New insights every day with Beyond →
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <SectionLabel>Ask your coach</SectionLabel>
@@ -107,22 +120,31 @@ function CoachInsights() {
           <ScrollView ref={scrollRef} style={{ maxHeight: 300 }}>
             <View style={{ padding: 16, gap: 10 }}>
               {state.coachMessages.map(msg => (
-                <View
-                  key={msg.id}
-                  style={{
-                    alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                    maxWidth: '82%',
-                    backgroundColor: msg.role === 'user' ? COLORS.ink1 : COLORS.ink7,
-                    borderRadius: 14,
-                    borderBottomRightRadius: msg.role === 'user' ? 4 : 14,
-                    borderBottomLeftRadius: msg.role === 'coach' ? 4 : 14,
-                    padding: 10,
-                  }}
-                >
-                  <Text style={{ fontFamily: undefined, fontSize: 13.5, lineHeight: 20, color: msg.role === 'user' ? COLORS.paper : COLORS.ink1 }}>
-                    {msg.text}
-                  </Text>
-                </View>
+                <React.Fragment key={msg.id}>
+                  <View
+                    style={{
+                      alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                      maxWidth: '82%',
+                      backgroundColor: msg.role === 'user' ? COLORS.ink1 : COLORS.ink7,
+                      borderRadius: 14,
+                      borderBottomRightRadius: msg.role === 'user' ? 4 : 14,
+                      borderBottomLeftRadius: msg.role === 'coach' ? 4 : 14,
+                      padding: 10,
+                    }}
+                  >
+                    <Text style={{ fontFamily: undefined, fontSize: 13.5, lineHeight: 20, color: msg.role === 'user' ? COLORS.paper : COLORS.ink1 }}>
+                      {msg.text}
+                    </Text>
+                  </View>
+                  {msg.upgrade && plan === 'free' && (
+                    <TouchableOpacity
+                      onPress={() => openPaywall('chat_limit')}
+                      style={{ alignSelf: 'flex-start', backgroundColor: COLORS.ink1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9 }}
+                    >
+                      <Text style={{ color: COLORS.paper, fontSize: 13, fontWeight: '600' }}>Get {PAID_PLAN_NAME}</Text>
+                    </TouchableOpacity>
+                  )}
+                </React.Fragment>
               ))}
             </View>
           </ScrollView>
