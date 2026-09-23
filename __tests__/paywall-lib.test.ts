@@ -1,9 +1,9 @@
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn() } }));
 
 import { router } from 'expo-router';
 import {
   openPaywall, takePendingAction, dropPendingAction, paywallHeadline, primaryLabel,
-  annualSavingsPercent, renewalTerms,
+  annualSavingsPercent, renewalTerms, finishWelcome,
 } from '../lib/paywall';
 import type { PaywallPackage } from '../lib/purchases';
 
@@ -11,7 +11,10 @@ const monthly: PaywallPackage = { period: 'monthly', productId: 'beyond_monthly'
 const annual: PaywallPackage = { period: 'annual', productId: 'beyond_annual', priceString: '$29.99', price: 29.99, hasFreeTrial: true, raw: {} };
 const push = router.push as jest.Mock;
 
-beforeEach(() => push.mockClear());
+beforeEach(() => {
+  push.mockClear();
+  (router.replace as jest.Mock).mockClear();
+});
 
 describe('openPaywall and pending actions', () => {
   it('opens with just the source when there is nothing to continue', () => {
@@ -62,5 +65,18 @@ describe('copy', () => {
       'Manage or cancel any time in your account settings.',
     );
     expect(renewalTerms('web', monthly, false, now)).toContain('Payment is charged to your card.');
+  });
+});
+
+describe('finishWelcome', () => {
+  it('goes to the tabs and offers the trial when eligible', () => {
+    finishWelcome(true);
+    expect(router.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(push).toHaveBeenCalledWith({ pathname: '/paywall', params: { source: 'welcome' } });
+  });
+  it('goes straight to the tabs otherwise', () => {
+    finishWelcome(false);
+    expect(router.replace).toHaveBeenCalledWith('/(tabs)');
+    expect(push).not.toHaveBeenCalled();
   });
 });

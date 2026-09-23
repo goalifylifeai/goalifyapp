@@ -18,6 +18,7 @@ const IDS = {
   lunch: 'ritual-lunch',
   evening: 'ritual-evening',
   sentimentCheckIn: 'sentiment-check-in',
+  trialEnding: 'trial-ending',
 } as const;
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -176,6 +177,20 @@ export async function scheduleHabitReminder(habitId: string, label: string, hour
 
 export async function cancelHabitReminder(habitId: string) {
   await cancelNotification(habitReminderId(habitId));
+}
+
+export async function scheduleTrialEndingReminder(at: Date, body: string) {
+  if (Platform.OS === 'web') return;
+  await cancelNotification(IDS.trialEnding);
+  await Notifications.scheduleNotificationAsync({
+    identifier: IDS.trialEnding,
+    content: { title: 'Your Goalify Beyond trial', body, data: { screen: 'profile' } },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
+  });
+}
+
+export async function cancelTrialEndingReminder() {
+  await cancelNotification(IDS.trialEnding);
 }
 
 // Reconcile scheduled habit reminders with the current habit list — call on

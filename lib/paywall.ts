@@ -60,3 +60,9 @@ export function renewalTerms(os: string, pkg: PaywallPackage, trialEligible: boo
     'Renews automatically unless cancelled at least 24 hours before the end of the current period. ' +
     'Manage or cancel any time in your account settings.';
 }
+
+/** End of the welcome flow (U0): land on Today, then offer the trial to eligible users. */
+export function finishWelcome(showOffer: boolean): void {
+  router.replace('/(tabs)');
+  if (showOffer) router.push({ pathname: '/paywall', params: { source: 'welcome' } });
+}
