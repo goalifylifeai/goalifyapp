@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './auth';
 import type { SphereId } from '../constants/theme';
 import { FINAL_STAGE, type VisionStage } from '../lib/vision-stage';
+import { splitGenerationResults } from '../lib/vision-limit';
 
 export type VisionAssetStatus = 'pending' | 'generating' | 'ready' | 'error';
 
@@ -46,6 +47,8 @@ type VisionContextValue = {
   requestRegen: (goalId: string, stage: VisionStage, goalTitle: string, sphere: SphereId) => void;
   canRegen: (goalId: string, stage: VisionStage) => boolean;
   isGenerating: (goalId: string) => boolean;
+  isImageLimited: (goalId: string) => boolean;
+  retryGeneration: (goalId: string, goalTitle: string, sphere: SphereId) => void;
 };
 
 const VisionContext = createContext<VisionContextValue | null>(null);
@@ -56,10 +59,11 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [assets, setAssets] = useState<AssetMap>({});
   const [urls, setUrls] = useState<UrlMap>({});
+  const [limited, setLimited] = useState<Record<string, true>>({});
   const generating = useRef<Set<string>>(new Set()); // goalIds currently generating
 
   const fetchAllAssets = useCallback(async () => {
-    if (!user) { setAssets({}); return; }
+    if (!user) { setAssets({}); setLimited({}); return; }
     const { data, error } = await supabase
       .from('vision_assets')
       .select('*')
@@ -140,17 +144,25 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
           }), 15_000);
           return;
         }
-        // Merge returned assets into state.
+        const { assets: rows, limitedGoalIds } = splitGenerationResults(data as Array<VisionAsset & { error?: string }>);
         setAssets(prev => {
           const next = { ...prev };
-          for (const row of data as VisionAsset[]) {
-            next[assetKey(row.goal_id, row.stage)] = row;
-          }
+          for (const row of rows) next[assetKey(row.goal_id, row.stage)] = row;
+          // Refused for the image cap: drop the local placeholder so nothing shimmers.
+          for (const id of limitedGoalIds) delete next[assetKey(id, FINAL_STAGE)];
           return next;
         });
+        if (limitedGoalIds.length) {
+          setLimited(prev => ({ ...prev, ...Object.fromEntries(limitedGoalIds.map(id => [id, true as const])) }));
+        }
       })
       .catch(() => { generating.current.delete(goalId); });
   }, [user, assets]);
+
+  const retryGeneration = useCallback((goalId: string, goalTitle: string, sphere: SphereId) => {
+    setLimited(prev => { const next = { ...prev }; delete next[goalId]; return next; });
+    requestGeneration(goalId, goalTitle, sphere);
+  }, [requestGeneration]);
 
   const requestRegen = useCallback((goalId: string, stage: VisionStage, goalTitle: string, sphere: SphereId) => {
     if (!user) return;
@@ -196,7 +208,9 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
     requestRegen,
     canRegen: (goalId, stage) => canRegenAsset(assets[assetKey(goalId, stage)]),
     isGenerating: (goalId) => generating.current.has(goalId),
-  }), [assets, urls, requestGeneration, requestRegen]);
+    isImageLimited: (goalId) => !!limited[goalId],
+    retryGeneration,
+  }), [assets, urls, requestGeneration, requestRegen, limited, retryGeneration]);
 
   return <VisionContext.Provider value={value}>{children}</VisionContext.Provider>;
 }

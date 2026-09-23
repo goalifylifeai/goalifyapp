@@ -8,6 +8,9 @@ import type { SphereId } from '../../constants/theme';
 import { F } from '../ui';
 import { useVisionAssets } from '../../store/vision';
 import { FINAL_STAGE } from '../../lib/vision-stage';
+import { usePlan } from '../../store/plan';
+import { openPaywall } from '../../lib/paywall';
+import { imageLimitCaption } from '../../lib/vision-limit';
 
 type Props = {
   goalId: string;
@@ -19,14 +22,16 @@ type Props = {
 };
 
 export function VisionBanner({ goalId, goalTitle, sphere, caption, fallbackColors, onPress }: Props) {
-  const { getAsset, getSignedUrl, requestGeneration, isGenerating } = useVisionAssets();
+  const { getAsset, getSignedUrl, requestGeneration, isGenerating, isImageLimited, retryGeneration } = useVisionAssets();
+  const { plan } = usePlan();
   const stage = FINAL_STAGE;
   const asset = getAsset(goalId, stage);
   const signedUrl = getSignedUrl(goalId, stage);
+  const limited = isImageLimited(goalId);
 
   // Fire-and-forget generation on first render if no asset exists.
   useEffect(() => {
-    if (!asset) requestGeneration(goalId, goalTitle, sphere);
+    if (!asset && !limited) requestGeneration(goalId, goalTitle, sphere);
   }, [goalId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -83,9 +88,18 @@ export function VisionBanner({ goalId, goalTitle, sphere, caption, fallbackColor
           </View>
         </View>
 
-        {/* Caption */}
+        {/* Caption, or the image-cap note (U4) */}
         <View style={s.captionWrap}>
-          <Text style={s.caption} numberOfLines={2}>{caption}</Text>
+          {limited ? (
+            <TouchableOpacity
+              disabled={plan !== 'free'}
+              onPress={() => openPaywall('vision_limit', () => retryGeneration(goalId, goalTitle, sphere))}
+            >
+              <Text style={s.limitText}>{imageLimitCaption(plan)}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={s.caption} numberOfLines={2}>{caption}</Text>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -129,5 +143,12 @@ const s = StyleSheet.create({
     lineHeight: 17,
     color: 'rgba(20,15,10,0.92)',
     letterSpacing: -0.1,
+  },
+  limitText: {
+    fontFamily: F.mono,
+    fontSize: 9,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    color: 'rgba(20,15,10,0.8)',
   },
 });
