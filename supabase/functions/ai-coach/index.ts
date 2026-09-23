@@ -190,6 +190,7 @@ Deno.serve(async (req: Request) => {
       if (blocked) {
         return json({ error: 'rate_limited', message: "You've used this month's 150 coach messages. They reset on the 1st." }, 429);
       }
+      const askedAt = new Date().toISOString();
       const chatSystem = system.replace('Respond with ONLY valid JSON, no prose outside the JSON, no markdown fences.',
         'Respond with a single short, warm, specific paragraph (2-4 sentences) as plain text, not JSON.');
       const reply = await callModel(
@@ -198,7 +199,15 @@ Deno.serve(async (req: Request) => {
         `User's data:\n${JSON.stringify(context)}\n\nUser's question: ${message!.trim()}`,
         400,
       );
-      return json({ reply: reply.trim() });
+      const replyText = reply.trim();
+      // Save the exchange so history survives restarts. Explicit timestamps
+      // keep question-before-answer order; a failed save never loses the reply.
+      const { error: saveErr } = await adminClient.from('coach_messages').insert([
+        { user_id: user.id, role: 'user', text: message!.trim().slice(0, 4000), created_at: askedAt },
+        { user_id: user.id, role: 'coach', text: replyText.slice(0, 4000), created_at: new Date().toISOString() },
+      ]);
+      if (saveErr) console.error('ai-coach: saving chat failed', saveErr.message);
+      return json({ reply: replyText });
     }
 
     if (mode === 'insights') {
