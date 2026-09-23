@@ -65,6 +65,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     if (!userId) {
       logOutPurchases();
       setAvailable(false);
+      setLoaded(true);
       return;
     }
     (async () => {

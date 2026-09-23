@@ -18,7 +18,8 @@ jest.mock('../lib/supabase', () => ({
   },
 }));
 
-jest.mock('../store/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }));
+let mockUser: { id: string } | null = { id: 'u1' };
+jest.mock('../store/auth', () => ({ useAuth: () => ({ user: mockUser }) }));
 
 import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react-native';
@@ -32,8 +33,18 @@ const monthly = { period: 'monthly' as const, productId: 'beyond_monthly', price
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockUser = { id: 'u1' };
   mockMaybeSingle.mockResolvedValue({ data: null, error: null });
   mockInvoke.mockResolvedValue({ data: { ok: true }, error: null });
+});
+
+it('is immediately loaded and free when signed out', async () => {
+  mockUser = null;
+  const { result } = renderHook(() => usePlan(), { wrapper });
+  await waitFor(() => expect(result.current.loaded).toBe(true));
+  expect(result.current.plan).toBe('free');
+  expect(result.current.available).toBe(false);
+  expect(P.configurePurchases).not.toHaveBeenCalled();
 });
 
 it('stays usable when RevenueCat is unavailable, honouring an active server row', async () => {
