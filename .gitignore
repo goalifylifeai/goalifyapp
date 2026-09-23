@@ -58,3 +58,6 @@ client_secret_*.json
 
 # Brand source assets (exported copies live in assets/)
 brand/
+
+# Google OAuth client secrets (downloaded from Google Cloud Console)
+client_secret_*.json
