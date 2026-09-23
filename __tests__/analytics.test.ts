@@ -7,14 +7,14 @@ jest.mock('expo-constants', () => ({
 
 const mockClient = {
   capture: jest.fn(), screen: jest.fn(), identify: jest.fn(), register: jest.fn(),
-  reset: jest.fn(), optOut: jest.fn(() => Promise.resolve()),
+  reset: jest.fn(), optOut: jest.fn(() => Promise.resolve()), optIn: jest.fn(() => Promise.resolve()),
 };
 const mockCtor = jest.fn(() => mockClient);
 jest.mock('posthog-react-native', () => ({ PostHog: mockCtor }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  __resetForTests, getAnalyticsConsent, identify, initAnalytics, sanitize, screen, setAnalyticsConsent, stripUrls, track,
+  __resetForTests, getAnalyticsConsent, trackAccountDeleted, identify, initAnalytics, sanitize, screen, setAnalyticsConsent, stripUrls, track,
 } from '../lib/analytics';
 
 const flush = () => new Promise(r => setImmediate(r));
@@ -92,6 +92,36 @@ describe('consent', () => {
     mockClient.capture.mockClear();
     track('coach_message_sent');
     expect(mockClient.capture).not.toHaveBeenCalled();
+  });
+
+  it('sends again after consent is withdrawn and then granted again', async () => {
+    // optOut() is persisted by PostHog and survives reset(); the next client
+    // would read it and drop everything unless it is opted back in.
+    await initAnalytics();
+    await setAnalyticsConsent(true);
+    await setAnalyticsConsent(false);
+    mockClient.optIn.mockClear();
+    mockClient.capture.mockClear();
+
+    await setAnalyticsConsent(true);
+    track('coach_message_sent');
+
+    expect(mockClient.optIn).toHaveBeenCalled();
+    expect(mockClient.capture).toHaveBeenCalledWith('coach_message_sent', {});
+  });
+
+  it('account_deleted goes out under a fresh anonymous identity, after the reset', async () => {
+    // The delete-account function already deleted the PostHog person; an event
+    // on the old distinct id would create them again.
+    await initAnalytics();
+    await setAnalyticsConsent(true);
+    const order: string[] = [];
+    mockClient.reset.mockImplementation(() => { order.push('reset'); });
+    mockClient.capture.mockImplementation((name: string) => { order.push(name); });
+
+    trackAccountDeleted();
+
+    expect(order).toEqual(['reset', 'account_deleted']);
   });
 
   it('strips free text even if a caller passes it', async () => {

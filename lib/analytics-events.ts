@@ -6,6 +6,7 @@ import type { AppAction, AppState } from '../store/reducer';
 import type { TrackedEvent } from './analytics';
 
 const pct = (fraction: number) => Math.round(fraction * 100);
+const snakeCase = (k: string) => k.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`);
 
 export function wordCountBucket(text: string): '1-20' | '21-100' | '100+' {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
@@ -20,8 +21,21 @@ export function eventsForAction(action: AppAction, prev: AppState, next: AppStat
       const g = action.goal;
       return [{ name: 'goal_created', props: { sphere: g.sphere, has_due_date: !!g.due, subtask_count: g.sub.length } }];
     }
-    case 'UPDATE_GOAL':
-      return [{ name: 'goal_updated', props: { fields_changed: Object.keys(action.patch).sort() } }];
+    case 'UPDATE_GOAL': {
+      const events: TrackedEvent[] = [];
+      const fields = Object.keys(action.patch).filter(k => k !== 'completedAt');
+      // snake_case: sanitize() only keeps lowercase enum-like strings.
+      if (fields.length) events.push({ name: 'goal_updated', props: { fields_changed: fields.map(snakeCase).sort() } });
+      if ('completedAt' in action.patch) {
+        const g = next.goals.find(x => x.id === action.goalId);
+        if (g?.completedAt) {
+          events.push({ name: 'goal_completed', props: { sphere: g.sphere, subtask_count: g.sub.length, progress_pct: pct(g.progress) } });
+        } else if (g && prev.goals.find(x => x.id === action.goalId)?.completedAt) {
+          events.push({ name: 'goal_reopened', props: {} });
+        }
+      }
+      return events;
+    }
     case 'REMOVE_GOAL': {
       const g = prev.goals.find(x => x.id === action.goalId);
       if (!g) return [];

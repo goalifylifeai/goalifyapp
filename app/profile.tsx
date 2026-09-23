@@ -21,7 +21,7 @@ import { useDailyRitual } from '../store/daily-ritual';
 import { syncHabitsToCalendar, removeAllHabitsFromCalendar } from '../lib/calendar';
 import { getNotificationTimes, saveNotificationTimes, DEFAULT_NOTIFICATION_TIMES } from '../lib/notification-prefs';
 import { scheduleMorningNotification, scheduleEveningClose } from '../lib/notifications';
-import { analyticsAvailable, setAnalyticsConsent, track, useAnalyticsConsent } from '../lib/analytics';
+import { analyticsAvailable, setAnalyticsConsent, track, trackAccountDeleted, useAnalyticsConsent } from '../lib/analytics';
 
 const CALENDAR_SYNC_KEY = '@goalify/calendar_sync';
 
@@ -167,7 +167,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             const { error } = await deleteAccount();
             if (error) Alert.alert('Failed', error);
-            else track('account_deleted');
+            else trackAccountDeleted();
           },
         },
       ],

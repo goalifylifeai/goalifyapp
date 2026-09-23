@@ -34,6 +34,29 @@ describe('eventsForAction', () => {
     ]);
   });
 
+  it('goal_updated sends snake_case field names, so they survive sanitize()', () => {
+    const prev = { ...initialState, goals: [goal] };
+    expect(run({ type: 'UPDATE_GOAL', goalId: 'g1', patch: { title: 'x', completedAt: '2026-09-24T08:00:00.000Z' } } as any, prev)).toEqual(
+      expect.arrayContaining([{ name: 'goal_updated', props: { fields_changed: ['title'] } }]),
+    );
+  });
+
+  it('marking a goal complete sends goal_completed, not goal_updated', () => {
+    const prev = { ...initialState, goals: [goal] };
+    const events = run({ type: 'UPDATE_GOAL', goalId: 'g1', patch: { completedAt: '2026-09-24T08:00:00.000Z' } } as any, prev);
+    expect(events).toEqual([{
+      name: 'goal_completed',
+      props: { sphere: goal.sphere, subtask_count: goal.sub.length, progress_pct: Math.round(goal.progress * 100) },
+    }]);
+  });
+
+  it('reopening a completed goal sends goal_reopened', () => {
+    const prev = { ...initialState, goals: [{ ...goal, completedAt: '2026-09-20T08:00:00.000Z' }] };
+    expect(run({ type: 'UPDATE_GOAL', goalId: 'g1', patch: { completedAt: undefined } } as any, prev)).toEqual([
+      { name: 'goal_reopened', props: {} },
+    ]);
+  });
+
   it('habit_checked reflects the new state', () => {
     const prev = { ...initialState, habits: [habit] };
     const [e] = run({ type: 'TOGGLE_HABIT', id: 'h1' }, prev);

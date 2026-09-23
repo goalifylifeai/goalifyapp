@@ -36,6 +36,8 @@ export type EventMap = {
   goal_created: { sphere: SphereId; has_due_date: boolean; subtask_count: number };
   goal_updated: { fields_changed: string[] };
   goal_deleted: { subtask_count: number; progress_pct: number };
+  goal_completed: { sphere: SphereId; subtask_count: number; progress_pct: number };
+  goal_reopened: {};
   subtask_added: {};
   subtask_toggled: { done: boolean; goal_progress_pct: number; goal_completed: boolean };
   habit_created: { sphere: SphereId; linked_to_goal: boolean };
@@ -157,7 +159,12 @@ function setConsentState(next: Consent) {
 function run(op: Op) {
   if (!apiKey || consent === 'denied') return;
   if (consent === 'granted') {
-    if (!client) client = createClient();
+    if (!client) {
+      client = createClient();
+      // A denial calls optOut(), which PostHog persists and reset() doesn't
+      // clear; without this a later grant would silently drop every event.
+      client.optIn().catch(() => {});
+    }
     try { op(client); } catch { /* analytics must never break the app */ }
     return;
   }
@@ -256,6 +263,16 @@ export function registerSuperProps(props: Props): void {
 
 export function resetAnalytics(): void {
   run(c => { c.reset(); });
+}
+
+/**
+ * After a successful account delete. The server already erased the PostHog
+ * person, so reset to a fresh anonymous id first; tracking on the old id
+ * would recreate them.
+ */
+export function trackAccountDeleted(): void {
+  resetAnalytics();
+  track('account_deleted');
 }
 
 /** Test-only: back to a fresh module state. */

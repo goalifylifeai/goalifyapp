@@ -1,7 +1,7 @@
 // Renders nothing. Keeps PostHog in step with the app: who the user is, their
 // plan (as super properties on every event), a few counts, and screen views.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSegments } from 'expo-router';
 import { useAuth } from '../../store/auth';
 import { usePlan } from '../../store/plan';
@@ -22,20 +22,32 @@ export function AnalyticsBridge() {
 
   useEffect(() => { initAnalytics(); }, []);
 
+  // While consent is denied, identity/plan calls are dropped, not buffered.
+  // Bump on each denied → granted switch so the effects below re-send them.
+  const prevConsent = useRef(consent);
+  const [grantEpoch, setGrantEpoch] = useState(0);
+  useEffect(() => {
+    if (consent === 'granted' && prevConsent.current === 'denied') setGrantEpoch(n => n + 1);
+    prevConsent.current = consent;
+  }, [consent]);
+
   // Identity: identify on sign-in (and cold start with a session), reset on sign-out.
   const userId = user?.id ?? null;
   const signupDate = user?.created_at?.slice(0, 10);
   const lastUser = useRef<string | null>(null);
+  const lastEpoch = useRef(grantEpoch);
   useEffect(() => {
     const prev = lastUser.current;
+    const regranted = grantEpoch !== lastEpoch.current;
     lastUser.current = userId;
-    if (userId && userId !== prev) {
-      if (prev) resetAnalytics();
+    lastEpoch.current = grantEpoch;
+    if (userId && (userId !== prev || regranted)) {
+      if (prev && prev !== userId) resetAnalytics();
       identify(userId, {}, signupDate ? { signup_date: signupDate } : {});
     } else if (!userId && prev) {
       resetAnalytics();
     }
-  }, [userId, signupDate]);
+  }, [userId, signupDate, grantEpoch]);
 
   // Plan: only once a source confirmed it, so an offline cold start's Free placeholder isn't recorded.
   useEffect(() => {
@@ -47,14 +59,14 @@ export function AnalyticsBridge() {
       will_renew: plan.willRenew,
       ...(plan.store ? { store: plan.store.toLowerCase() } : {}),
     });
-  }, [userId, plan.loaded, plan.confirmed, plan.plan, plan.isTrial, plan.willRenew, plan.store]);
+  }, [userId, plan.loaded, plan.confirmed, plan.plan, plan.isTrial, plan.willRenew, plan.store, grantEpoch]);
 
   const goals = state.goals.length;
   const habits = state.habits.length;
   useEffect(() => {
     if (!userId) return;
     setPersonProps({ goals_count: goals, habits_count: habits });
-  }, [userId, goals, habits]);
+  }, [userId, goals, habits, grantEpoch]);
 
   // The webhook reads this attribute before forwarding subscription events.
   useEffect(() => {
