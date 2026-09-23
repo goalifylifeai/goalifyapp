@@ -5,6 +5,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { userIdsFromEvent, type RcWebhookEvent } from '../_shared/entitlement.ts';
 import { refreshSubscription } from '../_shared/revenuecat.ts';
+import { capture, posthogEventFromRc } from '../_shared/analytics.ts';
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
@@ -24,5 +25,9 @@ Deno.serve(async (req: Request) => {
     const result = await refreshSubscription(admin, userId, event.period_type);
     if (result !== 'ok') return new Response('retry', { status: 500 });
   }
+  // After the subscription is stored, so a retry never double-counts in PostHog
+  // (and the event uuid dedupes anyway). Only for users who opted in.
+  const analyticsEvent = posthogEventFromRc(event);
+  if (analyticsEvent) await capture(Deno.env, analyticsEvent);
   return new Response('ok');
 });

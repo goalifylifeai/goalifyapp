@@ -61,6 +61,15 @@ export async function logOutPurchases(): Promise<void> {
   await Purchases.logOut().catch(() => {});
 }
 
+/**
+ * Mirrors the analytics consent onto the RevenueCat customer, so the webhook
+ * only forwards subscription events to PostHog for users who opted in.
+ */
+export async function setAnalyticsConsentAttribute(granted: boolean): Promise<void> {
+  if (!configured) return;
+  await Purchases.setAttributes({ analytics_consent: granted ? 'granted' : 'denied' }).catch(() => {});
+}
+
 const toState = (info: CustomerInfo) => planStateFromCustomerInfo(info as unknown as CustomerInfoLike);
 
 export async function fetchPlanState(): Promise<PlanState> {

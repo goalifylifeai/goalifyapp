@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { Card, SectionLabel, F } from '../../components/ui';
 import { useCircles } from '../../store/circles';
+import { track } from '../../lib/analytics';
 
 export default function CirclesScreen() {
   const insets = useSafeAreaInsets();
@@ -28,6 +29,7 @@ export default function CirclesScreen() {
     setBusy(true);
     setError(null);
     const res = await createCircle(name);
+    track('circle_created', { outcome: res.error ? 'error' : 'ok' });
     setBusy(false);
     if (res.error) setError(res.error);
     else reset();
@@ -37,6 +39,12 @@ export default function CirclesScreen() {
     setBusy(true);
     setError(null);
     const res = await joinCircle(code);
+    track('circle_joined', {
+      outcome: !res.error ? 'ok'
+        : /already a member/i.test(res.error) ? 'already_member'
+        : /invite code/i.test(res.error) ? 'invalid_code'
+        : 'error',
+    });
     setBusy(false);
     if (res.error) setError(res.error);
     else reset();

@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase';
 import { bootstrapUserData } from '../lib/bootstrap';
 import { enqueue, drainQueue, type QueueItem } from '../lib/offline-queue';
 import { localDateISO } from '../lib/date';
+import { trackAll } from '../lib/analytics';
+import { eventsForAction } from '../lib/analytics-events';
 import { appReducer, initialState, type AppAction, type AppState } from './reducer';
 
 const CACHE_KEY = '@goalify/cache';
@@ -374,12 +376,14 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
     (action: AppAction) => {
       rawDispatch(action);
 
+      const currentState = stateRef.current;
+      const nextState = appReducer(currentState, action);
+      trackAll(eventsForAction(action, currentState, nextState));
+
       const userId = userIdRef.current;
       if (!userId) return;
 
       // Fire-and-forget: sync to Supabase, enqueue on failure
-      const currentState = stateRef.current;
-      const nextState = appReducer(currentState, action);
 
       writeCache(nextState).catch(() => {});
 

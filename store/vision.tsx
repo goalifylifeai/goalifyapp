@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/analytics';
 import { useAuth } from './auth';
 import { usePlan } from './plan';
 import type { SphereId } from '../constants/theme';
@@ -147,6 +148,7 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
       .then(({ data, error }) => {
         generating.current.delete(goalId);
         if (error || !data) {
+          track('vision_generation_requested', { outcome: 'error' });
           // e.g. the goal hasn't synced to the server yet (404). Drop the local
           // placeholders after a pause so the banner requests generation again.
           setTimeout(() => setAssets(prev => {
@@ -167,7 +169,9 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
           for (const id of limitedGoalIds) delete next[assetKey(id, FINAL_STAGE)];
           return next;
         });
+        track('vision_generation_requested', { outcome: limitedGoalIds.length ? 'image_limit' : 'ready' });
         if (limitedGoalIds.length) {
+          track('vision_limit_hit');
           setLimited(prev => ({ ...prev, ...Object.fromEntries(limitedGoalIds.map(id => [id, true as const])) }));
         }
       })
@@ -193,6 +197,7 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
 
     // e.g. 403 pro_required while the subscription is still syncing, or quota.
     const failed = () => {
+      track('vision_regen_requested', { outcome: 'error' });
       setAssets(prev => (prev[key]?.status === 'generating'
         ? { ...prev, [key]: { ...prev[key]!, status: previousStatus } }
         : prev));
@@ -203,6 +208,7 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
       .invoke('generate-vision', { body: { goal_id: goalId, goal_title: goalTitle, sphere, regen: true } })
       .then(({ data, error }) => {
         if (error || !data) { failed(); return; }
+        track('vision_regen_requested', { outcome: 'ok' });
         setAssets(prev => {
           const next = { ...prev };
           for (const row of data as VisionAsset[]) {

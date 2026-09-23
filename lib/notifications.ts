@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { DailyIntention } from '../store/daily-ritual';
 import { getNotificationTimes } from './notification-prefs';
+import { track } from './analytics';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -26,6 +27,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
   const { status: existing } = await Notifications.getPermissionsAsync();
   if (existing === 'granted') return true;
   const { status } = await Notifications.requestPermissionsAsync();
+  track('notification_permission_result', { granted: status === 'granted' });
   return status === 'granted';
 }
 

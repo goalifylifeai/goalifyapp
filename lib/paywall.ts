@@ -6,11 +6,13 @@ import { router } from 'expo-router';
 import { PAID_PLAN_PITCH, VISION_PITCH, WELCOME_OFFER } from '../constants/brand';
 import { formatDate, type PaywallSource } from './plan-state';
 import type { PaywallPackage } from './purchases';
+import { track } from './analytics';
 
 const pending = new Map<string, () => void>();
 let seq = 0;
 
 export function openPaywall(source: PaywallSource, onUnlocked?: () => void): void {
+  track('upgrade_cta_tapped', { source });
   if (!onUnlocked) {
     router.push({ pathname: '/paywall', params: { source } });
     return;
@@ -63,6 +65,7 @@ export function renewalTerms(os: string, pkg: PaywallPackage, trialEligible: boo
 
 /** End of the welcome flow (U0): land on Today, then offer the trial to eligible users. */
 export function finishWelcome(showOffer: boolean): void {
+  track('welcome_completed', { trial_offer_shown: showOffer });
   router.replace('/(tabs)');
   if (showOffer) router.push({ pathname: '/paywall', params: { source: 'welcome' } });
 }

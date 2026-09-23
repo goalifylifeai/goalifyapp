@@ -8,6 +8,7 @@ import { usePlan } from '../store/plan';
 import {
   loadSnapshot, priceForProduct, saveSnapshot, trialJustEnded, trialReminderAt, trialReminderBody,
 } from '../lib/trial';
+import { track } from '../lib/analytics';
 import { cancelTrialEndingReminder, scheduleTrialEndingReminder } from '../lib/notifications';
 
 export function TrialWatcher() {
@@ -24,7 +25,10 @@ export function TrialWatcher() {
     (async () => {
       const prev = await loadSnapshot(userId);
       if (cancelled) return;
-      if (trialJustEnded(prev, plan, plan.loaded)) router.push('/trial-ended');
+      if (trialJustEnded(prev, plan, plan.loaded)) {
+        track('trial_ended_viewed');
+        router.push('/trial-ended');
+      }
       await saveSnapshot(userId, { plan: plan.plan, isTrial: plan.isTrial });
 
       const at = trialReminderAt(plan, new Date());

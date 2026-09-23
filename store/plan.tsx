@@ -3,6 +3,7 @@ import React, {
 } from 'react';
 import { AppState } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/analytics';
 import { useAuth } from './auth';
 import {
   configurePurchases, logOutPurchases, fetchPlanState, onPlanStateChange, fetchPackages,
@@ -143,7 +144,11 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
   const purchase = useCallback(async (pkg: PaywallPackage, source: PaywallSource) => {
     const result = await purchasePackage(pkg, source);
-    if (result.status === 'cancelled') return 'cancelled';
+    if (result.status === 'cancelled') {
+      track('purchase_cancelled', { source, period: pkg.period });
+      return 'cancelled';
+    }
+    track('purchase_completed', { source, period: pkg.period, is_trial: result.state.isTrial });
     setRcState(result.state);
     await syncServer();
     return 'purchased';

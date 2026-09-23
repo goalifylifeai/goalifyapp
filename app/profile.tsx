@@ -20,6 +20,7 @@ import { useDailyRitual } from '../store/daily-ritual';
 import { syncHabitsToCalendar, removeAllHabitsFromCalendar } from '../lib/calendar';
 import { getNotificationTimes, saveNotificationTimes, DEFAULT_NOTIFICATION_TIMES } from '../lib/notification-prefs';
 import { scheduleMorningNotification, scheduleEveningClose } from '../lib/notifications';
+import { analyticsAvailable, setAnalyticsConsent, track, useAnalyticsConsent } from '../lib/analytics';
 
 const CALENDAR_SYNC_KEY = '@goalify/calendar_sync';
 
@@ -107,7 +108,11 @@ export default function ProfileScreen() {
     update(patch);
   };
 
+  const analyticsConsent = useAnalyticsConsent();
+  const analyticsOn = analyticsConsent === 'granted';
+
   const onSignOut = async () => {
+    track('signed_out');
     await signOut();
   };
 
@@ -161,6 +166,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             const { error } = await deleteAccount();
             if (error) Alert.alert('Failed', error);
+            else track('account_deleted');
           },
         },
       ],
@@ -342,6 +348,28 @@ export default function ProfileScreen() {
               }} />
             </TouchableOpacity>
           </View>
+          {analyticsAvailable() && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 14, borderTopWidth: 0.5, borderTopColor: COLORS.ink7 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: undefined, fontSize: 14, color: COLORS.ink1, fontWeight: '500' }}>Share usage data</Text>
+                <Text style={{ fontFamily: undefined, fontSize: 12, color: COLORS.ink3, marginTop: 4, lineHeight: 17 }}>
+                  Anonymous feature usage that helps improve Goalify. Never what you write.
+                </Text>
+              </View>
+              <TouchableOpacity
+                testID="analytics-toggle"
+                accessibilityRole="switch"
+                accessibilityState={{ checked: analyticsOn }}
+                onPress={() => setAnalyticsConsent(!analyticsOn)}
+                style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: analyticsOn ? COLORS.ink1 : COLORS.ink6, position: 'relative', flexShrink: 0 }}
+              >
+                <View style={{
+                  position: 'absolute', top: 3, left: analyticsOn ? 21 : 3,
+                  width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff',
+                }} />
+              </TouchableOpacity>
+            </View>
+          )}
         </Card>
       </View>
 

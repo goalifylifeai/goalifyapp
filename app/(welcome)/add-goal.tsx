@@ -14,6 +14,7 @@ import { useStore } from '../../store';
 import { useOnboarding } from '../../store/onboarding';
 import { newId } from '../../lib/id';
 import { localDateISO, formatDisplayDate } from '../../lib/date';
+import { track } from '../../lib/analytics';
 
 const SPHERES = Object.keys(SPHERE_COLORS) as SphereId[];
 
@@ -49,6 +50,7 @@ export default function WelcomeAddGoal() {
       type: 'ADD_GOAL',
       goal: { id: goalId, sphere, title: t, due: localDateISO(due), progress: 0, sub: [] },
     });
+    track('welcome_goal_step', { action: 'saved', sphere });
     setHabitPrompt({ goalId, sphere, title: t });
   };
 
@@ -79,7 +81,10 @@ export default function WelcomeAddGoal() {
     goToAddTask(goalId, t);
   };
 
-  const skip = () => router.replace('/(tabs)');
+  const skip = () => {
+    track('welcome_goal_step', { action: 'skipped' });
+    router.replace('/(tabs)');
+  };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');

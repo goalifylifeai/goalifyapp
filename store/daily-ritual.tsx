@@ -8,6 +8,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/analytics';
 import { useAuth } from './auth';
 import { localDateISO, addDaysISO } from '../lib/date';
 import { buildWidgetSnapshot, activeDatesFromIntentions } from '../lib/widget-snapshot';
@@ -138,6 +139,7 @@ export function DailyRitualProvider({ children }: { children: ReactNode }) {
 
     if (err) return { error: err.message };
     setIntention(data as DailyIntention);
+    track('ritual_morning_completed', { sphere, actions_count: actions.length, must_do: actions.some(a => a.is_must_do) });
     return { error: null };
   }, [user]);
 
@@ -170,6 +172,12 @@ export function DailyRitualProvider({ children }: { children: ReactNode }) {
 
     if (err) return { error: err.message };
     setIntention(data as DailyIntention);
+    track('ritual_evening_completed', {
+      wrote_line: !!journalLine.trim(),
+      next_sphere: nextSphere,
+      actions_done: intention.actions.filter(a => a.done).length,
+      actions_total: intention.actions.length,
+    });
     return { error: null };
   }, [intention]);
 
