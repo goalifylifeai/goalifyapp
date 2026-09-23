@@ -374,10 +374,11 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
         const userId = session.user.id;
         userIdRef.current = userId;
         try {
-          // Land pre-session and offline writes first, or the server copy
-          // loaded below would HYDRATE over goals that exist only on this device.
-          await flushPending(userId);
+          // Land offline writes, then this session's pre-session writes (older
+          // first, so a stale queued edit can't overwrite a newer one), before
+          // the server copy below HYDRATEs over goals only on this device.
           await drainQueue(replayQueueItem, userId).catch(() => {});
+          await flushPending(userId);
           const freshState = await bootstrapUserData();
           if (!cancelled) {
             rawDispatch({ type: 'HYDRATE', state: freshState });
@@ -388,8 +389,9 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
         }
       } else if (event === 'SIGNED_OUT') {
         // The session is already gone here, so the queue can't be replayed
-        // (RLS would reject it). Keep it: items are tagged with their owner and
-        // replay at that user's next sign-in, never under another account.
+        // (RLS would reject it). Keep it: items are tagged with their owner,
+        // replay at that user's next sign-in, and are dropped if another
+        // account signs in first. Account deletion clears it (store/profile).
         userIdRef.current = null;
         pendingRef.current = [];
         await AsyncStorage.removeItem(CACHE_KEY).catch(() => {});

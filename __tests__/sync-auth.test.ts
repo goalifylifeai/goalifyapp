@@ -227,6 +227,31 @@ describe('usePersistentStore auth lifecycle', () => {
     expect(queueMock.enqueue).toHaveBeenCalledWith(expect.objectContaining({ table: 'goals', owner: 'user-1' }));
   });
 
+  it('replays older queued writes before this session\'s pending writes', async () => {
+    // Otherwise a stale offline rename (or an upsert of a since-deleted goal)
+    // would land on top of the newer write.
+    const { queueMock, bootstrapMock } = getMocks();
+    const calls: string[] = [];
+    queueMock.drainQueue.mockImplementation(async () => { calls.push('drain'); });
+    upsert.mockImplementation(async () => { calls.push('upsert'); return { error: null }; });
+    bootstrapMock.bootstrapUserData.mockImplementation(async () => {
+      calls.push('bootstrap');
+      return { goals: [], habits: [], journal: [] };
+    });
+
+    const { result } = renderHook(() => usePersistentStore());
+    act(() => {
+      result.current.dispatch({ type: 'ADD_GOAL', goal: goal('g-new') } as AppAction);
+    });
+    await fireAuth('INITIAL_SESSION', { user: { id: 'user-1' } });
+    await flush();
+
+    // drain, then this session's upserts (goal + subtasks), then bootstrap.
+    expect(calls[0]).toBe('drain');
+    expect(calls).toContain('upsert');
+    expect(calls[calls.length - 1]).toBe('bootstrap');
+  });
+
   it('waits for pre-session writes to land before loading from the server', async () => {
     const { bootstrapMock } = getMocks();
     const calls: string[] = [];

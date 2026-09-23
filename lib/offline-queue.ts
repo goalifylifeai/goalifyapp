@@ -9,7 +9,7 @@ export type QueueItem = {
   payload: Record<string, unknown>;
   created_at: string;
   retries: number;
-  /** User who made the write. Only replayed while that user is signed in. */
+  /** User who made the write. Replayed only for them; dropped when another user drains. */
   owner?: string;
 };
 
@@ -56,12 +56,11 @@ export async function drainQueue(
   const remaining: QueueItem[] = [];
 
   for (const item of queue) {
-    // Another account's write: keep it, untouched, for that account's next sign-in.
+    // Another account's write: drop it. A different account signed in on this
+    // device, and the previous one's unsynced data (journal text included)
+    // must not stay behind on it.
     const owner = ownerOf(item);
-    if (ownerId && owner && owner !== ownerId) {
-      remaining.push(item);
-      continue;
-    }
+    if (ownerId && owner && owner !== ownerId) continue;
     try {
       await syncFn(item);
       // success — drop from queue

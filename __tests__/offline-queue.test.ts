@@ -91,7 +91,9 @@ describe('offline-queue', () => {
     expect(q[0].id).toBe('persist-me');
   });
 
-  it('drainQueue for an owner replays only that owner and leaves other accounts queued untouched', async () => {
+  it('drainQueue for an owner replays that owner and discards other accounts\' writes', async () => {
+    // A different account signed in on this device: the previous account's
+    // unsynced data (journal bodies included) must not stay behind.
     await enqueue(makeItem({ id: 'mine', owner: 'user-a' }));
     await enqueue(makeItem({ id: 'theirs', owner: 'user-b' }));
     const sync = jest.fn().mockResolvedValue(undefined);
@@ -99,7 +101,7 @@ describe('offline-queue', () => {
     await drainQueue(sync, 'user-a');
 
     expect(sync.mock.calls.map(c => c[0].id)).toEqual(['mine']);
-    expect(await getQueue()).toEqual([expect.objectContaining({ id: 'theirs', owner: 'user-b', retries: 0 })]);
+    expect(await getQueue()).toEqual([]);
   });
 
   it('drainQueue treats an untagged item by its payload user_id', async () => {
@@ -110,7 +112,7 @@ describe('offline-queue', () => {
     await drainQueue(sync, 'user-a');
 
     expect(sync.mock.calls.map(c => c[0].id)).toEqual(['legacy-mine']);
-    expect((await getQueue()).map(i => i.id)).toEqual(['legacy-theirs']);
+    expect(await getQueue()).toEqual([]);
   });
 
   it('clearQueue empties the queue', async () => {
