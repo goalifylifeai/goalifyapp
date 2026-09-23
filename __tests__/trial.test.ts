@@ -2,7 +2,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 
 import {
-  trialJustEnded, trialReminderAt, trialReminderBody, loadSnapshot, saveSnapshot,
+  trialJustEnded, trialReminderAt, trialReminderBody, loadSnapshot, saveSnapshot, priceForProduct,
 } from '../lib/trial';
 import { FREE_STATE, type PlanState } from '../lib/plan-state';
 
@@ -53,5 +53,23 @@ describe('snapshot storage', () => {
     await saveSnapshot('u1', { plan: 'beyond', isTrial: true });
     expect(await loadSnapshot('u1')).toEqual({ plan: 'beyond', isTrial: true });
     expect(await loadSnapshot('u2')).toBeNull();
+  });
+});
+
+describe('priceForProduct', () => {
+  const pkg = (productId: string, priceString: string) =>
+    ({ period: 'monthly' as const, productId, priceString, price: 3.99, hasFreeTrial: true, raw: {} });
+  it('matches an Android package (subscriptionId:basePlanId) to the entitlement product', () => {
+    expect(priceForProduct({ monthly: pkg('beyond_monthly:monthly', '€3.99'), annual: null }, 'beyond_monthly')).toBe('€3.99');
+  });
+  it('matches when the entitlement also carries the base plan id', () => {
+    expect(priceForProduct({ monthly: null, annual: pkg('beyond_annual:annual', '€29.99') }, 'beyond_annual:annual')).toBe('€29.99');
+  });
+  it('matches plain iOS/web ids', () => {
+    expect(priceForProduct({ monthly: pkg('beyond_monthly', '$3.99'), annual: null }, 'beyond_monthly')).toBe('$3.99');
+  });
+  it('is null with no product or no matching package', () => {
+    expect(priceForProduct({ monthly: pkg('beyond_monthly', '$3.99'), annual: null }, null)).toBeNull();
+    expect(priceForProduct({ monthly: pkg('beyond_monthly', '$3.99'), annual: null }, 'beyond_annual')).toBeNull();
   });
 });

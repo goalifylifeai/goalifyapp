@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { formatDate, type Plan, type PlanState } from './plan-state';
+import type { Packages } from './purchases';
 
 export type PlanSnapshot = { plan: Plan; isTrial: boolean };
 
@@ -21,6 +22,17 @@ export function trialReminderAt(s: PlanState, now: Date): Date | null {
 export function trialReminderBody(priceString: string | null, trialEndsAt: string): string {
   const charge = priceString ? `charged ${priceString}` : 'charged';
   return `Your free trial ends in 2 days. You'll be ${charge} on ${formatDate(trialEndsAt)} unless you cancel.`;
+}
+
+/** Google Play package ids are "subscriptionId:basePlanId"; entitlements carry only the subscription id. */
+const baseProductId = (id: string) => id.split(':')[0];
+
+/** The localized price of the product the user is on, if it's one of the offered packages. */
+export function priceForProduct(packages: Packages, productId: string | null): string | null {
+  if (!productId) return null;
+  const want = baseProductId(productId);
+  const pkg = [packages.monthly, packages.annual].find(p => p && baseProductId(p.productId) === want);
+  return pkg?.priceString ?? null;
 }
 
 export async function loadSnapshot(userId: string): Promise<PlanSnapshot | null> {

@@ -5,7 +5,9 @@ import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { useAuth } from '../store/auth';
 import { usePlan } from '../store/plan';
-import { loadSnapshot, saveSnapshot, trialJustEnded, trialReminderAt, trialReminderBody } from '../lib/trial';
+import {
+  loadSnapshot, priceForProduct, saveSnapshot, trialJustEnded, trialReminderAt, trialReminderBody,
+} from '../lib/trial';
 import { cancelTrialEndingReminder, scheduleTrialEndingReminder } from '../lib/notifications';
 
 export function TrialWatcher() {
@@ -14,7 +16,10 @@ export function TrialWatcher() {
   const userId = user?.id;
 
   useEffect(() => {
-    if (!userId || !plan.loaded) return;
+    // Only act on a plan that a source actually confirmed for this user: an
+    // offline cold start's Free placeholder must not end a trial or overwrite
+    // the snapshot (or cancel a valid reminder).
+    if (!userId || !plan.loaded || !plan.confirmed) return;
     let cancelled = false;
     (async () => {
       const prev = await loadSnapshot(userId);
@@ -24,14 +29,14 @@ export function TrialWatcher() {
 
       const at = trialReminderAt(plan, new Date());
       if (at && plan.trialEndsAt) {
-        const pkg = [plan.packages.monthly, plan.packages.annual].find(p => p?.productId === plan.productId);
-        await scheduleTrialEndingReminder(at, trialReminderBody(pkg?.priceString ?? null, plan.trialEndsAt)).catch(() => {});
+        const price = priceForProduct(plan.packages, plan.productId);
+        await scheduleTrialEndingReminder(at, trialReminderBody(price, plan.trialEndsAt)).catch(() => {});
       } else {
         await cancelTrialEndingReminder().catch(() => {});
       }
     })();
     return () => { cancelled = true; };
-  }, [userId, plan.loaded, plan.plan, plan.isTrial, plan.willRenew, plan.trialEndsAt, plan.productId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userId, plan.loaded, plan.confirmed, plan.plan, plan.isTrial, plan.willRenew, plan.trialEndsAt, plan.productId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }
