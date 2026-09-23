@@ -9,6 +9,7 @@ import * as Sharing from 'expo-sharing';
 import { COLORS } from '../constants/theme';
 import { levelForGoals } from '../constants/data';
 import { Card, SectionLabel, Bar, F } from '../components/ui';
+import { PlanSection } from '../components/PlanSection';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../store/auth';
 import { useProfile } from '../store/profile';
@@ -210,6 +211,8 @@ export default function ProfileScreen() {
           </Card>
         ))}
       </View>
+
+      <PlanSection />
 
       <SectionLabel>Personal details</SectionLabel>
       <View style={{ paddingHorizontal: 22 }}>
