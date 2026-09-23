@@ -5,7 +5,7 @@ require('dotenv/config');
 module.exports = {
   expo: {
     name: 'Goalify',
-    slug: 'goalify',
+    slug: 'goalifylifeai',
     owner: 'goalifyais-organization',
     version: '1.0.0',
     orientation: 'portrait',
