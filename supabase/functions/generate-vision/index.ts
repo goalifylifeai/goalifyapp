@@ -190,6 +190,7 @@ Deno.serve(async (req: Request) => {
 
     // Call fal.ai synchronous endpoint.
     let imageUrl: string | null = null;
+    let failure = '';
     try {
       const falRes = await fetch('https://fal.run/fal-ai/flux/schnell', {
         method: 'POST',
@@ -209,15 +210,19 @@ Deno.serve(async (req: Request) => {
       if (falRes.ok) {
         const falData = await falRes.json() as { images?: { url: string }[] };
         imageUrl = falData.images?.[0]?.url ?? null;
+        if (!imageUrl) failure = 'fal returned no image';
+      } else {
+        failure = `fal ${falRes.status}: ${(await falRes.text()).slice(0, 300)}`;
       }
-    } catch (_) {
-      // fal.ai call failed — mark error below.
+    } catch (err) {
+      failure = `fal request failed: ${(err as Error).message}`;
     }
 
     if (!imageUrl) {
+      console.error('generate-vision', goal_id, failure);
       await adminClient.from('vision_assets').update({
         status: 'error',
-        error_msg: 'Image generation failed',
+        error_msg: failure || 'Image generation failed',
       }).eq('user_id', user.id).eq('goal_id', goal_id).eq('stage', stage);
       results.push({ ...(upserted ?? {}), status: 'error' });
       continue;
@@ -228,6 +233,7 @@ Deno.serve(async (req: Request) => {
     let uploadOk = false;
     try {
       const imgRes = await fetch(imageUrl);
+      if (!imgRes.ok) throw new Error(`image download ${imgRes.status}`);
       const imgBlob = await imgRes.blob();
       const { error: uploadErr } = await adminClient.storage
         .from('vision-assets')
@@ -236,9 +242,11 @@ Deno.serve(async (req: Request) => {
           upsert: true,
         });
       uploadOk = !uploadErr;
-    } catch (_) {
-      // Upload failed.
+      if (uploadErr) failure = `storage upload: ${uploadErr.message}`;
+    } catch (err) {
+      failure = `upload failed: ${(err as Error).message}`;
     }
+    if (!uploadOk) console.error('generate-vision', goal_id, failure);
 
     const finalStatus = uploadOk ? 'ready' : 'error';
     const now = new Date().toISOString();
@@ -246,7 +254,7 @@ Deno.serve(async (req: Request) => {
       status: finalStatus,
       storage_path: uploadOk ? storagePath : '',
       generated_at: uploadOk ? now : null,
-      error_msg: uploadOk ? null : 'Storage upload failed',
+      error_msg: uploadOk ? null : (failure || 'Storage upload failed'),
     };
     if (regen) {
       updatePayload.last_regen_at = now;
