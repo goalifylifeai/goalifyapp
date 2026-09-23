@@ -82,7 +82,9 @@ export default function WelcomeAddGoal() {
   const skip = () => router.replace('/(tabs)');
 
   const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
+    // Only Android's modal dialog closes on pick. On web, Chrome fires a change on
+    // month-arrow clicks, so hiding here would close the calendar mid-browse.
+    setShowDatePicker(Platform.OS !== 'android');
     if (selectedDate) {
       setDue(selectedDate);
     }

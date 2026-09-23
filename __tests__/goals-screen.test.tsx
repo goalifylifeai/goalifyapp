@@ -96,6 +96,26 @@ describe('<GoalsScreen />', () => {
     });
   });
 
+  it.each([
+    ['web', true],     // Chrome fires a change on month-arrow clicks; hiding would close the calendar
+    ['ios', true],
+    ['android', false], // the Android dialog is modal and closes itself
+  ])('on %s, the due-date picker stays open after a change: %s', (os, staysOpen) => {
+    const { Platform } = require('react-native');
+    const original = Platform.OS;
+    Platform.OS = os;
+    try {
+      mockStore();
+      const { getByTestId, getByText, queryByTestId } = render(<GoalsScreen />);
+      fireEvent.press(getByTestId('new-goal-button'));
+      fireEvent.press(getByText(/^Due:/));
+      fireEvent(getByTestId('date-picker'), 'onChange', { type: 'set' }, new Date(2030, 0, 15));
+      expect(!!queryByTestId('date-picker')).toBe(staysOpen);
+    } finally {
+      Platform.OS = original;
+    }
+  });
+
   it('lists completed goals separately, with the completion date, and can reopen them', () => {
     const done: Goal = { ...g2, completedAt: '2026-09-20T12:00:00.000Z' };
     const dispatch = mockStore([g1, done]);
