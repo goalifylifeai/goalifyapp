@@ -4,6 +4,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
+import { json, preflight } from '../_shared/http.ts';
 
 type SphereId = 'finance' | 'health' | 'career' | 'relationships';
 type VisionStage = 0 | 1 | 2 | 3;
@@ -101,32 +102,26 @@ const IMAGE_LIMITS: Record<Plan, Limit[]> = {
 };
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    });
-  }
+  const pre = preflight(req);
+  if (pre) return pre;
 
   const FAL_API_KEY = Deno.env.get('FAL_API_KEY');
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
   const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
   if (!FAL_API_KEY) {
-    return new Response(JSON.stringify({ error: 'FAL_API_KEY not configured' }), { status: 500 });
+    return json({ error: 'FAL_API_KEY not configured' }, 500);
   }
 
   // Authenticate caller.
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return new Response('Unauthorized', { status: 401 });
+  if (!authHeader) return json({ error: 'unauthorized' }, 401);
 
   const userClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: { user }, error: authError } = await userClient.auth.getUser();
-  if (authError || !user) return new Response('Unauthorized', { status: 401 });
+  if (authError || !user) return json({ error: 'unauthorized' }, 401);
 
   const body = await req.json() as {
     goal_id: string;
@@ -137,7 +132,7 @@ Deno.serve(async (req: Request) => {
 
   const { goal_id, regen = false } = body;
   if (!goal_id) {
-    return new Response(JSON.stringify({ error: 'goal_id required' }), { status: 400 });
+    return json({ error: 'goal_id required' }, 400);
   }
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const plan = await getPlan(adminClient, user.id);
@@ -145,7 +140,7 @@ Deno.serve(async (req: Request) => {
   // Regenerating (a second image for the same goal) is a Beyond feature, so
   // Free users get exactly one image per goal.
   if (regen && plan !== 'beyond') {
-    return new Response(JSON.stringify({ error: 'pro_required' }), { status: 403 });
+    return json({ error: 'pro_required' }, 403);
   }
 
   // Only generate for a goal the caller owns; take the sphere from the row,
@@ -157,7 +152,7 @@ Deno.serve(async (req: Request) => {
     .eq('user_id', user.id)
     .maybeSingle();
   if (!goalRow) {
-    return new Response(JSON.stringify({ error: 'goal not found' }), { status: 404 });
+    return json({ error: 'goal not found' }, 404);
   }
   const sphere = goalRow.sphere as SphereId;
   const seed = seedFromGoalId(goal_id);
@@ -310,10 +305,5 @@ Deno.serve(async (req: Request) => {
     results.push(finalRow ?? { ...upserted, ...updatePayload });
   }
 
-  return new Response(JSON.stringify(results), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
+  return json(results);
 });

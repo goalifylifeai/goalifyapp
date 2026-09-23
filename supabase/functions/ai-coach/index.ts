@@ -6,6 +6,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
+import { json, preflight } from '../_shared/http.ts';
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 // Gemini 3.1 Flash-Lite: a max-usage Goalify Beyond user costs ~$0.46/month
@@ -44,12 +45,6 @@ const LIMITS: Record<Plan, Record<Mode, Limit[]>> = {
     'nudge-sentiment': [{ limit: 1, window: 'day' }],
   },
 };
-
-const CORS_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: CORS_HEADERS });
-}
 
 type Mode = 'insights' | 'weekly' | 'chat' | 'nudge-streak' | 'nudge-sentiment';
 
@@ -95,31 +90,25 @@ function extractJson(text: string): unknown {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      },
-    });
-  }
+  const pre = preflight(req);
+  if (pre) return pre;
 
   const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
   const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
   if (!GEMINI_API_KEY) {
-    return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }), { status: 500 });
+    return json({ error: 'GEMINI_API_KEY not configured' }, 500);
   }
 
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return new Response('Unauthorized', { status: 401 });
+  if (!authHeader) return json({ error: 'unauthorized' }, 401);
 
   const userClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: { user }, error: authError } = await userClient.auth.getUser();
-  if (authError || !user) return new Response('Unauthorized', { status: 401 });
+  if (authError || !user) return json({ error: 'unauthorized' }, 401);
 
   const body = await req.json() as { mode: Mode; message?: string; force?: boolean };
   const { mode, message, force = false } = body;
@@ -209,9 +198,7 @@ Deno.serve(async (req: Request) => {
         `User's data:\n${JSON.stringify(context)}\n\nUser's question: ${message!.trim()}`,
         400,
       );
-      return new Response(JSON.stringify({ reply: reply.trim() }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
+      return json({ reply: reply.trim() });
     }
 
     if (mode === 'insights') {
@@ -227,9 +214,7 @@ Deno.serve(async (req: Request) => {
         .select()
         .single();
 
-      return new Response(JSON.stringify(saved), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
+      return json(saved);
     }
 
     if (mode === 'nudge-streak') {
@@ -240,9 +225,7 @@ Deno.serve(async (req: Request) => {
       ]);
 
       if (todayRow?.must_do_done) {
-        return new Response(JSON.stringify({ shouldNudge: false }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+        return json({ shouldNudge: false });
       }
 
       // Mirrors lib/date.ts's streakFromDates: consecutive active days ending yesterday.
@@ -264,9 +247,7 @@ Deno.serve(async (req: Request) => {
       const text = await callModel(GEMINI_API_KEY, system, prompt);
       const parsed = extractJson(text) as { title: string; body: string };
 
-      return new Response(JSON.stringify({ shouldNudge: true, ...parsed }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
+      return json({ shouldNudge: true, ...parsed });
     }
 
     if (mode === 'nudge-sentiment') {
@@ -287,9 +268,7 @@ Deno.serve(async (req: Request) => {
       const text = await callModel(GEMINI_API_KEY, system, prompt);
       const parsed = extractJson(text) as { title: string; body: string };
 
-      return new Response(JSON.stringify({ shouldNudge: true, ...parsed }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      });
+      return json({ shouldNudge: true, ...parsed });
     }
 
     // mode === 'weekly'
@@ -305,13 +284,10 @@ Deno.serve(async (req: Request) => {
       .select()
       .single();
 
-    return new Response(JSON.stringify(saved), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
+    return json(saved);
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 502,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
+    // Details stay in the logs; the app only needs to know it failed.
+    console.error('ai-coach', mode, (err as Error).message);
+    return json({ error: 'coach_unavailable' }, 502);
   }
 });
