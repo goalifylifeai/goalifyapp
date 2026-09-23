@@ -6,6 +6,7 @@ import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import { SPHERE_LIST, levelForGoals, computeSphereData, computeOverallScore, affirmationFor } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Ring, Bar, Check, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
+import { activeGoals } from '../../lib/goals';
 import { useFutureSelf } from '../../store/future-self';
 import { useDailyRitual } from '../../store/daily-ritual';
 import { useProfile } from '../../store/profile';
@@ -288,13 +289,13 @@ export default function TodayScreen() {
       {/* Affirmations per goal */}
       <SectionLabel>Affirmations</SectionLabel>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 22, paddingRight: 22, gap: 10, paddingBottom: 6 }}>
-        {state.goals.length === 0 ? (
+        {activeGoals(state.goals).length === 0 ? (
           <View style={{ minWidth: 280, borderRadius: 18, padding: 18, borderWidth: 1, borderColor: COLORS.ink7, backgroundColor: COLORS.surface }}>
             <Text style={{ fontFamily: F.displayItalic, fontSize: 16, color: COLORS.ink3, lineHeight: 22 }}>
               Add your first goal to unlock affirmations.
             </Text>
           </View>
-        ) : state.goals.map(g => {
+        ) : activeGoals(state.goals).map(g => {
           const s = SPHERE_COLORS[g.sphere];
           return (
             <LinearGradient

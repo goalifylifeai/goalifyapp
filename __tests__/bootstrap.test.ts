@@ -114,6 +114,45 @@ describe('bootstrapUserData', () => {
     expect(state.journal).toEqual([]);
   });
 
+  it('throws instead of returning no goals when the goals query errors', async () => {
+    // An empty list would HYDRATE over the user's goals and overwrite the cache.
+    const { supabase } = require('../lib/supabase');
+    const makeQuery = (res: { data: unknown; error: unknown }) => ({
+      select: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      order: jest.fn().mockResolvedValue(res),
+      gte: jest.fn().mockReturnThis(),
+    });
+    supabase.from.mockImplementation((table: string) =>
+      table === 'goals'
+        ? makeQuery({ data: null, error: { message: 'permission denied for table goals' } })
+        : makeQuery({ data: [], error: null }),
+    );
+
+    await expect(bootstrapUserData()).rejects.toMatchObject({ message: expect.stringContaining('goals') });
+  });
+
+  it('maps completed_at onto the goal', async () => {
+    const { supabase } = require('../lib/supabase');
+    const makeQuery = (data: unknown[]) => ({
+      select: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      order: jest.fn().mockResolvedValue({ data, error: null }),
+      gte: jest.fn().mockReturnThis(),
+    });
+    supabase.from.mockImplementation((table: string) =>
+      table === 'goals'
+        ? makeQuery([
+            { id: 'g1', user_id: 'u1', sphere: 'health', title: 'Run', due_date: null, completed_at: '2026-09-20T10:00:00+00:00', created_at: '', updated_at: '' },
+            { id: 'g2', user_id: 'u1', sphere: 'career', title: 'Ship', due_date: null, completed_at: null, created_at: '', updated_at: '' },
+          ])
+        : makeQuery([]),
+    );
+
+    const state = await bootstrapUserData();
+    expect(state.goals!.map(g => g.completedAt)).toEqual(['2026-09-20T10:00:00+00:00', undefined]);
+  });
+
   it('maps reminder and calendar fields from the habits row', async () => {
     const { supabase } = require('../lib/supabase');
     const makeQuery = (data: unknown[]) => ({

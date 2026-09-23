@@ -11,6 +11,7 @@ export type Subtask = { id: string; t: string; done: boolean };
 
 export type Goal = {
   id: string; sphere: SphereId; title: string; due: string; progress: number; sub: Subtask[];
+  completedAt?: string; // ISO timestamp; unset while the goal is active
 };
 
 export type HabitItem = {
@@ -33,6 +34,8 @@ export type JournalEntry = {
 
 export type ChatMessage = {
   id: string; role: 'user' | 'coach'; text: string;
+  /** The Free chat allowance is used up: show the "Get Goalify Beyond" button (U1). */
+  upgrade?: boolean;
 };
 
 export type AppState = {
@@ -58,7 +61,7 @@ export type AppAction =
   | { type: 'SET_HABIT_REMINDER'; id: string; hour: number | null; minute: number | null }
   | { type: 'ADD_JOURNAL'; entry: JournalEntry }
   | { type: 'ADD_USER_MESSAGE'; text: string }
-  | { type: 'ADD_COACH_REPLY'; text: string }
+  | { type: 'ADD_COACH_REPLY'; text: string; upgrade?: boolean }
   | { type: 'HYDRATE'; state: Partial<AppState> };
 
 // ── Pure reducer (unit-testable without rendering) ────────────────
@@ -160,7 +163,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'ADD_COACH_REPLY': {
-      const coachMsg: ChatMessage = { id: newId(), role: 'coach', text: action.text };
+      const coachMsg: ChatMessage = {
+        id: newId(), role: 'coach', text: action.text,
+        ...(action.upgrade ? { upgrade: true } : {}),
+      };
       return { ...state, coachMessages: [...state.coachMessages, coachMsg] };
     }
 

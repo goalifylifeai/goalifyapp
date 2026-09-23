@@ -12,6 +12,10 @@ import { TomorrowPickStep } from '../../components/ritual/TomorrowPickStep';
 import { CloseCelebrationStep } from '../../components/ritual/CloseCelebrationStep';
 import { useDailyRitual } from '../../store/daily-ritual';
 import { onEveningClosed } from '../../lib/notifications';
+import { requestSentimentCheckIn } from '../../lib/nudges';
+import { buildJournalEntry } from '../../lib/journal-entry';
+import { localDateISO } from '../../lib/date';
+import { useStore } from '../../store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const STEPS = 4;
@@ -21,6 +25,7 @@ const SCREEN_LABELS = ['Review', 'Reflect', 'Tomorrow', 'Close'];
 export default function EveningRitualScreen() {
   const router = useRouter();
   const { intention, isMorningDone, isEveningDone, toggleRitualAction, closeEvening } = useDailyRitual();
+  const { dispatch } = useStore();
 
   const [step, setStep] = useState(0);
   const [journalLine, setJournalLine] = useState('');
@@ -46,9 +51,16 @@ export default function EveningRitualScreen() {
 
     goToStep(3);
     setSaving(true);
-    const { error } = await closeEvening(journalLine.trim(), sphere);
+    const line = journalLine.trim();
+    const { error } = await closeEvening(line, sphere);
     setSaving(false);
     if (error) { setSaveError(error); return; }
+    // The evening line is also the day's Journal entry. Only after a successful
+    // close, so a retry after an error can't write it twice.
+    if (line) {
+      dispatch({ type: 'ADD_JOURNAL', entry: buildJournalEntry(line, localDateISO()) });
+      requestSentimentCheckIn().catch(() => {});
+    }
     await onEveningClosed().catch(() => {});
   };
 
@@ -160,7 +172,7 @@ export default function EveningRitualScreen() {
           </Text>
         </TouchableOpacity>
         {step === 1 && (
-          <TouchableOpacity onPress={handleNext} style={{ paddingTop: 14, alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => { setJournalLine(''); handleNext(); }} style={{ paddingTop: 14, alignItems: 'center' }}>
             <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink4, letterSpacing: 1 }}>
               Skip journal
             </Text>

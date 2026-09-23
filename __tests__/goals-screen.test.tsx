@@ -87,13 +87,58 @@ describe('<GoalsScreen />', () => {
     useLocalSearchParamsMock.mockReturnValue({});
   });
 
+  it('marks a goal complete with a timestamp', () => {
+    const dispatch = mockStore();
+    const { getByTestId } = render(<GoalsScreen />);
+    fireEvent.press(getByTestId('complete-goal-g2'));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'UPDATE_GOAL', goalId: 'g2', patch: { completedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) },
+    });
+  });
+
+  it.each([
+    ['web', true],     // Chrome fires a change on month-arrow clicks; hiding would close the calendar
+    ['ios', true],
+    ['android', false], // the Android dialog is modal and closes itself
+  ])('on %s, the due-date picker stays open after a change: %s', (os, staysOpen) => {
+    const { Platform } = require('react-native');
+    const original = Platform.OS;
+    Platform.OS = os;
+    try {
+      mockStore();
+      const { getByTestId, getByText, queryByTestId } = render(<GoalsScreen />);
+      fireEvent.press(getByTestId('new-goal-button'));
+      fireEvent.press(getByText(/^Due:/));
+      fireEvent(getByTestId('date-picker'), 'onChange', { type: 'set' }, new Date(2030, 0, 15));
+      expect(!!queryByTestId('date-picker')).toBe(staysOpen);
+    } finally {
+      Platform.OS = original;
+    }
+  });
+
+  it('lists completed goals separately, with the completion date, and can reopen them', () => {
+    const done: Goal = { ...g2, completedAt: '2026-09-20T12:00:00.000Z' };
+    const dispatch = mockStore([g1, done]);
+    const { getByText, queryByText } = render(<GoalsScreen />);
+
+    expect(getByText('1 active · 1 completed')).toBeTruthy();
+    expect(queryByText('Ship the app')).toBeNull(); // collapsed, and not among active goals
+
+    fireEvent.press(getByText('Show'));
+    expect(getByText('Ship the app')).toBeTruthy();
+    expect(getByText(/Completed Sep 20, 2026/)).toBeTruthy();
+
+    fireEvent.press(getByText('REOPEN'));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'UPDATE_GOAL', goalId: 'g2', patch: { completedAt: undefined } });
+  });
+
   it('renders all goals when the filter is "all"', () => {
     mockStore();
     const { getAllByText, getByText } = render(<GoalsScreen />);
     // Title appears twice per goal: once in our stubbed VisionBanner, once in the card body.
     expect(getAllByText('Run a 5k').length).toBeGreaterThan(0);
     expect(getAllByText('Ship the app').length).toBeGreaterThan(0);
-    expect(getByText('2 active · 12 completed')).toBeTruthy();
+    expect(getByText('2 active · 0 completed')).toBeTruthy();
   });
 
   it('initializes the sphere filter from the `sphere` route param', () => {

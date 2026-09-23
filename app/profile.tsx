@@ -3,16 +3,20 @@ import { ScrollView, View, Text, TextInput, TouchableOpacity, Alert, Platform, S
 import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../components/DateTimePicker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { COLORS } from '../constants/theme';
 import { levelForGoals } from '../constants/data';
 import { Card, SectionLabel, Bar, F } from '../components/ui';
+import { PlanSection } from '../components/PlanSection';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../store/auth';
 import { useProfile } from '../store/profile';
+import { usePlan } from '../store/plan';
+import { deleteAccountMessage } from '../lib/plan-state';
 import { useStore } from '../store';
+import { completedGoals } from '../lib/goals';
 import { useDailyRitual } from '../store/daily-ritual';
 import { syncHabitsToCalendar, removeAllHabitsFromCalendar } from '../lib/calendar';
 import { getNotificationTimes, saveNotificationTimes, DEFAULT_NOTIFICATION_TIMES } from '../lib/notification-prefs';
@@ -24,11 +28,12 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
   const { profile, update, deleteAccount } = useProfile();
+  const { plan, store } = usePlan();
   const { state, dispatch } = useStore();
 
   const { streak } = useDailyRitual();
   const lvl = levelForGoals(state.goals);
-  const goalsDone = state.goals.filter(g => g.sub.length > 0 && g.sub.every(st => st.done)).length;
+  const goalsDone = completedGoals(state.goals).length;
   const [name, setName] = useState(profile?.display_name ?? '');
   const [pronoun, setPronoun] = useState(profile?.pronouns ?? '');
   const [genderAware, setGenderAware] = useState(profile?.gender_aware_coaching ?? true);
@@ -148,7 +153,7 @@ export default function ProfileScreen() {
   const onDelete = () => {
     Alert.alert(
       'Delete account?',
-      'This permanently removes your account and all data.',
+      deleteAccountMessage(plan, store),
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -210,6 +215,8 @@ export default function ProfileScreen() {
           </Card>
         ))}
       </View>
+
+      <PlanSection />
 
       <SectionLabel>Personal details</SectionLabel>
       <View style={{ paddingHorizontal: 22 }}>

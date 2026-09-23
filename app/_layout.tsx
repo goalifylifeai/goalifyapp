@@ -19,12 +19,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StoreProvider } from '../store';
 import { AuthProvider, useAuth } from '../store/auth';
 import { ProfileProvider } from '../store/profile';
+import { PlanProvider } from '../store/plan';
 import { OnboardingProvider, useOnboarding } from '../store/onboarding';
 import { FutureSelfProvider } from '../store/future-self';
 import { DailyRitualProvider, useDailyRitual } from '../store/daily-ritual';
 import { VisionAssetsProvider } from '../store/vision';
 import { CoachAiProvider } from '../store/coach-ai';
 import { CirclesProvider } from '../store/circles';
+import { TrialWatcher } from '../components/TrialWatcher';
 import { decideRoute } from '../lib/auth-route';
 import { ensureNotificationsScheduled, ensureHabitRemindersScheduled } from '../lib/notifications';
 import { useStore } from '../store';
@@ -39,6 +41,7 @@ function NotificationListener() {
       if (screen === 'morning') router.push('/ritual/morning' as any);
       else if (screen === 'evening') router.push('/ritual/evening' as any);
       else if (screen === 'habits') router.push('/(tabs)/habits' as any);
+      else if (screen === 'profile') router.push('/profile' as any);
     });
     return () => sub.remove();
   }, [router]);
@@ -108,6 +111,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <ProfileProvider>
+            <PlanProvider>
             <OnboardingProvider>
               <FutureSelfProvider>
               <StoreProvider>
@@ -120,6 +124,7 @@ export default function RootLayout() {
                   <NotificationListener />
                   <RitualScheduler />
                   <HabitReminderScheduler />
+                  <TrialWatcher />
                   <Stack
                     screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.paper } }}
                   >
@@ -132,6 +137,8 @@ export default function RootLayout() {
                     <Stack.Screen name="score-info" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="level-info" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="streak-info" options={{ presentation: 'modal', gestureEnabled: true }} />
+                    <Stack.Screen name="paywall" options={{ presentation: 'modal', gestureEnabled: true }} />
+                    <Stack.Screen name="trial-ended" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="ritual" />
                     <Stack.Screen name="vision" />
                     <Stack.Screen name="circles" />
@@ -144,6 +151,7 @@ export default function RootLayout() {
               </StoreProvider>
               </FutureSelfProvider>
             </OnboardingProvider>
+            </PlanProvider>
           </ProfileProvider>
         </AuthProvider>
       </SafeAreaProvider>

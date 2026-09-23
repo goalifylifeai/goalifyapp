@@ -12,6 +12,8 @@ Build habits, track goals, and get AI coaching — all in one place.
 ## Full Description (max 4000 characters)
 
 ```
+See it. Build it. Become it.
+
 Goalify is your personal growth companion — a calm, focused space to set meaningful goals, build daily habits, and reflect on what matters most.
 
 Most productivity apps make you feel like you're always behind. Goalify is different. It works around four areas of your life — finance, health, career, and relationships — and helps you make steady, intentional progress without the noise.

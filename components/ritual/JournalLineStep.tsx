@@ -33,10 +33,10 @@ export function JournalLineStep({ sphere, mustDoDone, value, onChange }: Props) 
         keyboardShouldPersistTaps="handled"
       >
         <Text style={{ fontFamily: F.displayItalic, fontSize: 34, color: COLORS.ink1, letterSpacing: -0.6, lineHeight: 42, marginBottom: 8 }}>
-          One line.{'\n'}How was today?
+          Your journal.{'\n'}How was today?
         </Text>
         <Text style={{ fontFamily: undefined, fontSize: 15, color: COLORS.ink3, lineHeight: 22, marginBottom: 40 }}>
-          Optional. Skip if you'd rather not.
+          A line or two is enough. It's saved to your Journal.
         </Text>
 
         <TextInput

@@ -10,6 +10,7 @@ import { ActionPickStep } from '../../components/ritual/ActionPickStep';
 import { LockConfirmStep } from '../../components/ritual/LockConfirmStep';
 import { useDailyRitual, type RitualAction } from '../../store/daily-ritual';
 import { useStore } from '../../store';
+import { activeGoals } from '../../lib/goals';
 import { proposeMorningActions } from '../../lib/ritual-coach';
 import { onMorningLocked } from '../../lib/notifications';
 import { requestStreakRiskNudge } from '../../lib/nudges';
@@ -40,7 +41,7 @@ export default function MorningRitualScreen() {
 
   const handleSphereNext = () => {
     if (!sphere) return;
-    const proposed = proposeMorningActions(sphere, state.goals, state.habits);
+    const proposed = proposeMorningActions(sphere, activeGoals(state.goals), state.habits);
     setActions(proposed);
     goToStep(1);
   };
@@ -51,7 +52,7 @@ export default function MorningRitualScreen() {
 
   const handleSwap = (id: string) => {
     if (!sphere) return;
-    const fresh = proposeMorningActions(sphere, state.goals, state.habits);
+    const fresh = proposeMorningActions(sphere, activeGoals(state.goals), state.habits);
     setActions(prev => {
       const idx = prev.findIndex(a => a.id === id);
       if (idx === -1) return prev;

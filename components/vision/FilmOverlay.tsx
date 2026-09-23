@@ -6,7 +6,8 @@ import { F } from '../ui';
 import type { SphereId } from '../../constants/theme';
 import { FINAL_STAGE } from '../../lib/vision-stage';
 import { useVisionAssets } from '../../store/vision';
-import { PRO_VISION_REGEN } from '../../constants/flags';
+import { usePlan } from '../../store/plan';
+import { openPaywall } from '../../lib/paywall';
 
 type Props = {
   goalId: string;
@@ -18,11 +19,17 @@ type Props = {
 
 export function FilmOverlay({ goalId, goalTitle, sphere, caption, progress }: Props) {
   const { requestRegen, canRegen, getAsset } = useVisionAssets();
+  const { plan } = usePlan();
+  const locked = plan !== 'beyond';
   const currentAsset = getAsset(goalId, FINAL_STAGE);
   const isGenerating = currentAsset?.status === 'generating';
 
   const handleRegen = () => {
     if (isGenerating) return;
+    if (locked) {
+      openPaywall('vision_regen', () => requestRegen(goalId, FINAL_STAGE, goalTitle, sphere));
+      return;
+    }
     if (!canRegen(goalId, FINAL_STAGE)) {
       Alert.alert('Regen limit reached', 'You can regenerate this image once a week.', [{ text: 'OK' }]);
       return;
@@ -42,32 +49,33 @@ export function FilmOverlay({ goalId, goalTitle, sphere, caption, progress }: Pr
 
   return (
     <>
-      {/* Progress + regen row. Free plan: one image per goal, so no regen. */}
+      {/* Progress + regen row. Free: tapping opens the paywall (U2). */}
       <View style={s.stageRow}>
         <Text style={s.stageLabel}>{Math.round(progress * 100)}% of the way there</Text>
 
-        {PRO_VISION_REGEN && (
-          <TouchableOpacity
-            onPress={handleRegen}
-            style={[s.regenBtn, isGenerating && s.regenBtnDisabled]}
-            disabled={isGenerating}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            {isGenerating ? (
-              <Text style={s.regenText}>…</Text>
-            ) : (
-              <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-                <Path
-                  d="M13.5 8a5.5 5.5 0 1 1-1.5-3.79M13.5 2v3.5H10"
-                  stroke="rgba(255,255,255,0.8)"
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-            )}
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          onPress={handleRegen}
+          style={[s.regenBtn, isGenerating && s.regenBtnDisabled]}
+          disabled={isGenerating}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={locked ? 'Regenerate vision (Goalify Beyond)' : 'Regenerate vision'}
+        >
+          {isGenerating ? (
+            <Text style={s.regenText}>…</Text>
+          ) : (
+            <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+              <Path
+                d="M13.5 8a5.5 5.5 0 1 1-1.5-3.79M13.5 2v3.5H10"
+                stroke="rgba(255,255,255,0.8)"
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          )}
+          {locked && !isGenerating && <Text style={s.lock}>🔒</Text>}
+        </TouchableOpacity>
       </View>
 
       {/* Caption card */}
@@ -111,6 +119,7 @@ const s = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     fontSize: 16,
   },
+  lock: { position: 'absolute', right: -2, bottom: -2, fontSize: 8 },
   captionCard: {
     position: 'absolute',
     bottom: 60,
