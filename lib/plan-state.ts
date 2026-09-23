@@ -110,6 +110,14 @@ export function storeLabel(store: string | null): string | null {
   }
 }
 
+/** Delete-account confirmation: deleting the account doesn't cancel a store subscription. */
+export function deleteAccountMessage(plan: Plan, store: string | null): string {
+  const base = 'This permanently removes your account and all data.';
+  if (plan !== 'beyond') return base;
+  return `${base} Your ${PAID_PLAN_NAME} subscription keeps billing until you cancel it in ` +
+    `${storeLabel(store) ?? 'the store you subscribed with'}.`;
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }

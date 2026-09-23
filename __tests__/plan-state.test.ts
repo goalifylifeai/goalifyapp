@@ -1,6 +1,6 @@
 import {
   FREE_STATE, planStateFromCustomerInfo, planStateFromServer, resolvePlanState,
-  productHasFreeTrial, isTrialEligible, trialDaysLeft, storeLabel, planTitle, planDetail,
+  productHasFreeTrial, isTrialEligible, trialDaysLeft, storeLabel, planTitle, planDetail, deleteAccountMessage,
   type CustomerInfoLike, type PlanState,
 } from '../lib/plan-state';
 
@@ -93,5 +93,20 @@ describe('labels', () => {
     expect(planDetail(s)).toBe('Renews Oct 8, 2026 · billed through the App Store');
     expect(planDetail({ ...s, willRenew: false })).toBe('Ends Oct 8, 2026 · billed through the App Store');
     expect(planDetail(FREE_STATE)).toBe('Go Beyond: your coach, your vision, no limits.');
+  });
+});
+
+describe('deleteAccountMessage (I6)', () => {
+  const base = 'This permanently removes your account and all data.';
+  it('is the plain warning on Free', () => {
+    expect(deleteAccountMessage('free', null)).toBe(base);
+  });
+  it('warns a Beyond user that the store keeps billing', () => {
+    expect(deleteAccountMessage('beyond', 'APP_STORE')).toBe(
+      `${base} Your Goalify Beyond subscription keeps billing until you cancel it in the App Store.`);
+  });
+  it('falls back to a generic store name', () => {
+    expect(deleteAccountMessage('beyond', null)).toBe(
+      `${base} Your Goalify Beyond subscription keeps billing until you cancel it in the store you subscribed with.`);
   });
 });

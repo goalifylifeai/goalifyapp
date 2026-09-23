@@ -13,6 +13,8 @@ import { PlanSection } from '../components/PlanSection';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../store/auth';
 import { useProfile } from '../store/profile';
+import { usePlan } from '../store/plan';
+import { deleteAccountMessage } from '../lib/plan-state';
 import { useStore } from '../store';
 import { useDailyRitual } from '../store/daily-ritual';
 import { syncHabitsToCalendar, removeAllHabitsFromCalendar } from '../lib/calendar';
@@ -25,6 +27,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
   const { profile, update, deleteAccount } = useProfile();
+  const { plan, store } = usePlan();
   const { state, dispatch } = useStore();
 
   const { streak } = useDailyRitual();
@@ -149,7 +152,7 @@ export default function ProfileScreen() {
   const onDelete = () => {
     Alert.alert(
       'Delete account?',
-      'This permanently removes your account and all data.',
+      deleteAccountMessage(plan, store),
       [
         { text: 'Cancel', style: 'cancel' },
         {
