@@ -84,3 +84,39 @@ it('shows Restore purchases and the legal links', () => {
   expect(getByText('Terms of Use')).toBeTruthy();
   expect(getByText('Privacy Policy')).toBeTruthy();
 });
+
+it('I1: an already-subscribed user is not offered a purchase; the continuation runs instead', async () => {
+  const action = jest.fn();
+  openWith(action);
+  const p = plan({ plan: 'beyond' });
+  (usePlan as jest.Mock).mockReturnValue(p);
+  const { queryByText } = render(<PaywallScreen />);
+  await waitFor(() => expect(action).toHaveBeenCalledTimes(1));
+  expect(router.back).toHaveBeenCalledTimes(1);
+  expect(queryByText('Start 7-day free trial')).toBeNull();
+  expect(p.purchase).not.toHaveBeenCalled();
+});
+
+it('I1: waits for the plan to load before deciding the user is subscribed', () => {
+  openWith(jest.fn());
+  (usePlan as jest.Mock).mockReturnValue(plan({ plan: 'beyond', loaded: false }));
+  render(<PaywallScreen />);
+  expect(router.back).not.toHaveBeenCalled();
+});
+
+it('I1: a purchase that flips the plan to Beyond mid-flight closes the paywall once', async () => {
+  const action = jest.fn();
+  openWith(action);
+  let finish!: (v: string) => void;
+  const p = plan({ purchase: jest.fn(() => new Promise(r => { finish = r; })) });
+  (usePlan as jest.Mock).mockReturnValue(p);
+  const { getByText, rerender } = render(<PaywallScreen />);
+  fireEvent.press(getByText('Start 7-day free trial'));
+  // RevenueCat reports Beyond while the server sync is still running.
+  (usePlan as jest.Mock).mockReturnValue({ ...p, plan: 'beyond' });
+  rerender(<PaywallScreen />);
+  expect(router.back).not.toHaveBeenCalled();
+  finish('purchased');
+  await waitFor(() => expect(action).toHaveBeenCalledTimes(1));
+  expect(router.back).toHaveBeenCalledTimes(1);
+});

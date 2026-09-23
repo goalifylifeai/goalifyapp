@@ -18,7 +18,7 @@ export default function PaywallScreen() {
   const params = useLocalSearchParams<{ source?: string; token?: string }>();
   const source = (params.source ?? 'profile') as PaywallSource;
   const token = params.token;
-  const { loaded, available, packages, trialEligibleFor, purchase, restore } = usePlan();
+  const { plan, loaded, available, packages, trialEligibleFor, purchase, restore } = usePlan();
   const [period, setPeriod] = useState<'monthly' | 'annual'>('monthly');
   const [busy, setBusy] = useState(false);
   const finished = useRef(false);
@@ -31,11 +31,20 @@ export default function PaywallScreen() {
   const savings = annualSavingsPercent(packages.monthly, packages.annual);
 
   const unlocked = () => {
+    if (finished.current) return;
     finished.current = true;
     const action = takePendingAction(token);
     router.back();
     action?.();
   };
+
+  // Already on Beyond (stale state, deep link): never sell a second
+  // subscription, just carry on with what opened the paywall. Not while a
+  // purchase/restore is in flight: that path finishes after the server sync.
+  const subscribed = loaded && plan === 'beyond';
+  useEffect(() => {
+    if (subscribed && !busy) unlocked();
+  }, [subscribed, busy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const close = () => {
     finished.current = true;
@@ -86,7 +95,7 @@ export default function PaywallScreen() {
         ))}
       </View>
 
-      {!loaded ? (
+      {!loaded || (subscribed && !busy) ? (
         <ActivityIndicator color={COLORS.ink1} style={{ marginTop: 24 }} />
       ) : !available || !pkg ? (
         <Text style={s.unavailable}>Subscriptions aren't available on this device right now.</Text>
