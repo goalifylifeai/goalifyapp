@@ -8,8 +8,10 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
+import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './auth';
+import { usePlan } from './plan';
 import type { SphereId } from '../constants/theme';
 import { FINAL_STAGE, type VisionStage } from '../lib/vision-stage';
 import { splitGenerationResults } from '../lib/vision-limit';
@@ -61,6 +63,19 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
   const [urls, setUrls] = useState<UrlMap>({});
   const [limited, setLimited] = useState<Record<string, true>>({});
   const generating = useRef<Set<string>>(new Set()); // goalIds currently generating
+  const { plan, loaded: planLoaded } = usePlan();
+
+  // The cap caption is plan-specific: once a (loaded) Free user becomes Beyond
+  // by any route — purchase, restore, another device — drop it so the banner
+  // stops saying the month's images are used up. Generation isn't retried
+  // here: the server may not have the new plan yet; the banner asks again on
+  // its next mount and the U4 continuation retries after the server sync.
+  const lastPlan = useRef<{ plan: string; loaded: boolean }>({ plan, loaded: planLoaded });
+  useEffect(() => {
+    const prev = lastPlan.current;
+    lastPlan.current = { plan, loaded: planLoaded };
+    if (planLoaded && plan === 'beyond' && prev.loaded && prev.plan !== 'beyond') setLimited({});
+  }, [plan, planLoaded]);
 
   const fetchAllAssets = useCallback(async () => {
     if (!user) { setAssets({}); setLimited({}); return; }
@@ -169,17 +184,25 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
     const asset = assets[assetKey(goalId, stage)];
     if (!canRegenAsset(asset)) return;
 
+    const key = assetKey(goalId, stage);
+    const previousStatus = asset!.status;
     setAssets(prev => ({
       ...prev,
-      [assetKey(goalId, stage)]: prev[assetKey(goalId, stage)]
-        ? { ...prev[assetKey(goalId, stage)]!, status: 'generating' }
-        : undefined,
+      [key]: prev[key] ? { ...prev[key]!, status: 'generating' } : undefined,
     }));
+
+    // e.g. 403 pro_required while the subscription is still syncing, or quota.
+    const failed = () => {
+      setAssets(prev => (prev[key]?.status === 'generating'
+        ? { ...prev, [key]: { ...prev[key]!, status: previousStatus } }
+        : prev));
+      Alert.alert("Couldn't regenerate", 'Please try again later.');
+    };
 
     supabase.functions
       .invoke('generate-vision', { body: { goal_id: goalId, goal_title: goalTitle, sphere, regen: true } })
       .then(({ data, error }) => {
-        if (error || !data) return;
+        if (error || !data) { failed(); return; }
         setAssets(prev => {
           const next = { ...prev };
           for (const row of data as VisionAsset[]) {
@@ -190,7 +213,7 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
         // Invalidate cached signed URL so it refreshes with the new path.
         setUrls(prev => { const n = { ...prev }; delete n[assetKey(goalId, stage)]; return n; });
       })
-      .catch(() => {});
+      .catch(failed);
   }, [user, assets]);
 
   // Cooldown only. Whether the user may regenerate at all (Beyond) is decided
