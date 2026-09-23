@@ -27,7 +27,7 @@ const DAILY_LIMITS: Record<Mode, number> = {
   insights: 6,
   weekly: 4,
   'nudge-streak': 2,
-  'nudge-sentiment': 3,
+  'nudge-sentiment': 1,
 };
 
 const CORS_HEADERS = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
