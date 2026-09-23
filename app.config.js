@@ -67,6 +67,8 @@ module.exports = {
         appleTeamId: process.env.APPLE_TEAM_ID ?? 'XXXXXXXXXX',
       }],
       // Android home-screen widget. Renders widgets/GoalifyMediumWidget.tsx.
+      // Signs Android release builds with the upload key (survives prebuild --clean).
+      './plugins/withAndroidReleaseSigning',
       ['react-native-android-widget', {
         widgets: [{
           name: 'GoalifyMedium',

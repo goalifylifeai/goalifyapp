@@ -38,12 +38,15 @@ npx expo prebuild --platform android --clean
 
 ---
 
-## Step 2 — Add google-services.json (required for push notifications)
+## Step 2 — Add google-services.json (only for remote push)
 
-Expo Notifications uses Firebase Cloud Messaging (FCM) on Android.
+**Not needed today:** reminders, ritual notifications and coach nudges are all *local*
+notifications, which work without Firebase. You only need this once the app sends
+remote push notifications (Firebase Cloud Messaging).
 
 1. Go to [console.firebase.google.com](https://console.firebase.google.com).
-2. Create a project → Add Android app → package name: `com.goalify.app`.
+2. Create a project → Add Android app → package name: `com.goalifylife.app`
+   (must match `android.package` in `app.config.js`).
 3. Download `google-services.json`.
 4. Place it at `android/app/google-services.json`.
 
@@ -68,9 +71,14 @@ You'll be prompted for passwords and organisation info. Save the passwords — y
 
 ---
 
-## Step 4 — Configure signing in Gradle
+## Step 4 — Configure signing (once per machine)
 
-Edit `android/gradle.properties` — add at the bottom:
+Release signing is applied by the config plugin `plugins/withAndroidReleaseSigning.js`
+on every `expo prebuild`, including `--clean`, so **don't edit `android/app/build.gradle`
+by hand**; `android/` is regenerated and your edits would be lost.
+
+Put the keystore details in your **user-level** Gradle properties,
+`~/.gradle/gradle.properties` (outside the repo, so it survives prebuild and is never committed):
 
 ```properties
 GOALIFY_STORE_FILE=/Users/yourname/goalify-release.keystore
@@ -79,33 +87,17 @@ GOALIFY_KEY_ALIAS=goalify
 GOALIFY_KEY_PASSWORD=your_key_password
 ```
 
-> **Never commit this file with real passwords.** Add these as CI environment variables instead,
-> or keep a separate `gradle.properties` locally that is gitignored.
+Check it's picked up; the `release` variant must show `Config: release` and your keystore:
 
-Then in `android/app/build.gradle`, inside the `android { }` block:
-
-```groovy
-android {
-    // ... existing config ...
-
-    signingConfigs {
-        release {
-            storeFile file(GOALIFY_STORE_FILE)
-            storePassword GOALIFY_STORE_PASSWORD
-            keyAlias GOALIFY_KEY_ALIAS
-            keyPassword GOALIFY_KEY_PASSWORD
-        }
-    }
-
-    buildTypes {
-        release {
-            signingConfig signingConfigs.release
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-}
+```bash
+cd android && ./gradlew :app:signingReport
 ```
+
+If the properties are missing, release builds fall back to the debug key and Gradle prints
+`WARNING: GOALIFY_STORE_FILE is not set…`. Play Console rejects debug-signed uploads.
+
+> This keystore is your **upload key**. Keep Play App Signing on (the default for new apps):
+> Google holds the app signing key, so a lost upload key can be reset through Play Console support.
 
 ---
 
@@ -169,7 +161,8 @@ First-time reviews typically take **1–3 business days**.
 | `JAVA_HOME` not set | `export JAVA_HOME=$(/usr/libexec/java_home -v 17)` |
 | SDK not found | Set `ANDROID_HOME` and run `sdkmanager "platform-tools"` |
 | google-services.json missing | Add it to `android/app/` (Step 2) |
-| Signing config not found | Check `gradle.properties` key names match `build.gradle` references |
+| `WARNING: GOALIFY_STORE_FILE is not set` / release variant shows `Config: debug` | Add the four `GOALIFY_*` properties to `~/.gradle/gradle.properties` (Step 4) |
+| `withAndroidReleaseSigning: … no longer matches the expected Expo template` | An Expo upgrade changed `build.gradle`; update the patterns in `plugins/withAndroidReleaseSigning.js` |
 | `expo-apple-authentication` crash on Android | This plugin is iOS only — ensure it is gated behind `Platform.OS === 'ios'` in all usages |
 
 ---
