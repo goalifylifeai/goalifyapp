@@ -98,14 +98,14 @@ Every limit below is enforced **on the server** (`supabase/functions/*`, migrati
 
 | Feature | What triggers it | Free limit | When the limit is reached, the user sees… | Status |
 |---|---|---|---|---|
-| **Coach chat** (Coach → Insights → "Ask your coach") | Each message sent | **10 messages in total, ever** | Coach replies: *"You've used your 10 free messages with your coach. Upgrade to Goalify Beyond to keep chatting."* The server flags this with `upgrade: true`, so the **paywall opens here** (section 4, U1). | Limit LIVE; paywall PROPOSED |
+| **Coach chat** (Coach → Insights → "Ask your coach") | Each message sent | **10 messages in total, ever** | Coach replies: *"You've used your 10 free messages with your coach. Upgrade to Goalify Beyond to keep chatting."* The server flags this with `upgrade: true`, so the **paywall opens here** (section 4, U1). | Limit LIVE; paywall BUILT (pending store setup) |
 | **Personalized insights** (Coach → Insights) | Automatic on app open, if the saved set is >10 days old | **3 per month**; each set is kept for 10 days, so they spread across the month | The last insights stay visible. PROPOSED: under them, *"New insights every day with Beyond"* (U3) | Limit LIVE |
 | **Weekly review** (Coach → Weekly) | Automatic on app open, if the saved review is >7 days old | **1 per week** (same as Beyond) | n/a (never visible in normal use) | LIVE |
 | **Streak nudge** (evening notification) | Morning ritual locked with the must-do not yet done, and streak > 0 | **1 per day** (same as Beyond) | Not sent | LIVE |
 | **Mood check-in** (morning notification → Journal) | Journal saved while the last 3 entries trend downward | **1 per day** (same as Beyond) | Not sent | LIVE |
 | **Vision image** (goal cards, Coach → Vision, full-screen view) | Creating a goal | **1 image per goal, 10 per month** (and max 6/day) | New goals beyond 10 in a month show the life-area gradient instead of an image. PROPOSED: small caption *"Vision images for every goal with Beyond"* (U4) | LIVE |
-| **Regenerate vision image** (full-screen view) | Tapping regenerate | **Not available** | Today the button is hidden. PROPOSED: show it with a lock; tapping opens the paywall (U2) | Server gate LIVE; button HIDDEN |
-| **Ambient audio** (full-screen view) | Opening a vision | **Not available** | "♩ Ambient · Beyond" badge. PROPOSED: tapping it opens the paywall (U5) | HIDDEN (no audio files yet) |
+| **Regenerate vision image** (full-screen view) | Tapping regenerate | **Not available** | Today the button is hidden. PROPOSED: show it with a lock; tapping opens the paywall (U2) | Server gate LIVE; button BUILT (pending store setup) |
+| **Ambient audio** (full-screen view) | Opening a vision | **Not available** | "♩ Ambient · Beyond" badge. PROPOSED: tapping it opens the paywall (U5) | BUILT, OFF (flag, licences pending) |
 
 ### 2.3 Circles on Free  (DECIDED: D3)
 
@@ -131,8 +131,8 @@ Everything in Free, plus:
 | **Weekly review** | Same as Free | 1/week | LIVE |
 | **Nudges** | Same as Free | 1/day each | LIVE |
 | **Vision images** | 1 per goal | 30/month (6/day) | LIVE (same condition) |
-| **Regenerate vision image** | New image for a goal | Once per image per 7 days; counts toward the 30/month | Server LIVE; button HIDDEN until the app knows the plan |
-| **Ambient audio in vision view** | Looping ambient sound per life area | n/a | HIDDEN. Needs 4 audio files (`assets/audio/ambient_*.m4a`) |
+| **Regenerate vision image** | New image for a goal | Once per image per 7 days; counts toward the 30/month | Server LIVE; button BUILT (pending store setup) |
+| **Ambient audio in vision view** | Looping ambient sound per life area | n/a | BUILT, OFF (flag, licences pending) |
 | **Vision images from the goal's title** | e.g. "Learn Spanish" → a café table with a Spanish novel, instead of the generic life-area scene | Same image limits | SPEC'D (`specs/007` §2.2), not built |
 | **AI-picked ritual actions** | Morning ritual suggests actions picked by AI from the user's goals/habits/journal, instead of built-in lists | PROPOSED: 1/day | SPEC'D (`PRO_RITUAL_AI`, unused flag) |
 | **Ritual close sound** | Ambient sound on the evening celebration | n/a | SPEC'D (`PRO_RITUAL_SOUND`, unused flag) |
@@ -167,14 +167,14 @@ Every entry point opens the **same paywall** with a `source` tag, so you can mea
 
 | # | Moment | Screen | Trigger | What the user sees | Status |
 |---|---|---|---|---|---|
-| U1 | **Free chat used up** | Coach → Ask your coach | 11th message on Free (server returns `upgrade: true`) | Coach message with the limit text + **"Get Goalify Beyond"** button under it → paywall | Server LIVE; button PROPOSED |
-| U2 | **Regenerate vision** | Full-screen vision | Tap the (locked) regenerate button on Free | Paywall with the vision pitch: *"See it. Build it. Become it."* The earlier vision spec calls this the highest-intent upgrade moment in the app | PROPOSED (button hidden today) |
-| U3 | **Insights waiting** | Coach → Insights | Free user whose insights are older than 1 day | Quiet line under the insights: *"New insights every day with Beyond"* → paywall | PROPOSED |
-| U4 | **Vision images used up** | Goal card | Goal created after the 10th image this month | Caption on the gradient: *"Vision images for every goal with Beyond"* → paywall | PROPOSED |
-| U5 | **Ambient audio** | Full-screen vision | Tap "♩ Ambient · Beyond" badge | Paywall | PROPOSED (badge exists, not tappable) |
-| U0 | **Welcome offer** | After onboarding (day 0) | New, trial-eligible user | "Try Goalify Beyond free for 7 days" paywall (1.2) | PROPOSED |
-| U6 | **Trial reminder / ended** | Push notification (trial day 5), sheet (after a cancelled trial ends) | Trial timeline | See 1.2 | PROPOSED |
-| U7 | **Profile** | Profile | Always | "Goalify Beyond" row: shows plan status, trial days left, **Upgrade** / **Manage subscription** | PROPOSED |
+| U1 | **Free chat used up** | Coach → Ask your coach | 11th message on Free (server returns `upgrade: true`) | Coach message with the limit text + **"Get Goalify Beyond"** button under it → paywall | Server LIVE; button BUILT (pending store setup) |
+| U2 | **Regenerate vision** | Full-screen vision | Tap the (locked) regenerate button on Free | Paywall with the vision pitch: *"See it. Build it. Become it."* The earlier vision spec calls this the highest-intent upgrade moment in the app | BUILT (pending store setup) |
+| U3 | **Insights waiting** | Coach → Insights | Free user whose insights are older than 1 day | Quiet line under the insights: *"New insights every day with Beyond"* → paywall | BUILT (pending store setup) |
+| U4 | **Vision images used up** | Goal card | Goal created after the 10th image this month | Caption on the gradient: *"Vision images for every goal with Beyond"* → paywall | BUILT (pending store setup) |
+| U5 | **Ambient audio** | Full-screen vision | Tap "♩ Ambient · Beyond" badge | Paywall | BUILT (pending store setup) |
+| U0 | **Welcome offer** | After onboarding (day 0) | New, trial-eligible user | "Try Goalify Beyond free for 7 days" paywall (1.2) | BUILT (pending store setup) |
+| U6 | **Trial reminder / ended** | Push notification (trial day 5), sheet (after a cancelled trial ends) | Trial timeline | See 1.2 | BUILT (pending store setup) |
+| U7 | **Profile** | Profile | Always | "Goalify Beyond" row: shows plan status, trial days left, **Upgrade** / **Manage subscription** | BUILT (pending store setup) |
 
 **Rules for every upgrade moment:**
 - Show upgrade prompts only when the user tries something Beyond offers, never on a timer. U0 and U6 are the exceptions.
@@ -189,11 +189,11 @@ Every entry point opens the **same paywall** with a `source` tag, so you can mea
 
 | Location | What it does | Change needed for paid tiers |
 |---|---|---|
-| `supabase/functions/_shared/plan.ts` → `getPlan()` | **The single server-side plan check.** Returns `'free'` for everyone | Return `'beyond'` when the user's RevenueCat `beyond` entitlement is active. That includes the free trial, so there's no separate trial logic. Read it from a `subscriptions` table kept up to date by the RevenueCat webhook (or the RevenueCat REST API) |
+| `supabase/functions/_shared/plan.ts` → `getPlan()` | **The single server-side plan check.** Returns `'free'` for everyone | **BUILT (pending store setup).** Return `'beyond'` when the user's RevenueCat `beyond` entitlement is active. That includes the free trial, so there's no separate trial logic. Read it from a `subscriptions` table kept up to date by the RevenueCat webhook (or the RevenueCat REST API) |
 | `supabase/functions/ai-coach/index.ts` → `LIMITS`, `CACHE_TTL_MS` | Per-plan chat/insights/weekly/nudge limits; returns `upgrade: true` on the Free chat limit | None |
 | `supabase/functions/generate-vision/index.ts` → `IMAGE_LIMITS`, regen check | Per-plan image limits; regenerate refused unless Beyond (`pro_required`) | None |
 | `supabase/migrations/0020_ai_quota_windows.sql` | Counters (day/week/month/total) | None |
-| `constants/flags.ts` | `PRO_VISION_REGEN`, `PRO_VISION_AUDIO`, `PRO_RITUAL_AI`, `PRO_RITUAL_SOUND`: fixed `false` constants | Replace with a `usePlan()` hook that reads the user's real plan (from RevenueCat and/or the server) |
+| `constants/flags.ts` | `PRO_VISION_REGEN`, `PRO_VISION_AUDIO`, `PRO_RITUAL_AI`, `PRO_RITUAL_SOUND`: fixed `false` constants | **BUILT (pending store setup): `usePlan()`; flags reduced to `VISION_SOUND_AVAILABLE`.** Replace with a `usePlan()` hook that reads the user's real plan (from RevenueCat and/or the server) |
 | `components/vision/FilmOverlay.tsx` | Regenerate button hidden unless `PRO_VISION_REGEN` | Show for everyone; on Free, lock it and open the paywall (U2) |
 | `store/vision.tsx` → `canRegenAsset` | Regenerate allowed only if `PRO_VISION_REGEN` | Use `usePlan()` |
 | `app/vision/[goalId].tsx` | "♩ Ambient · Beyond" badge; audio only if `PRO_VISION_AUDIO` | Make the badge tappable (U5); ship audio files |

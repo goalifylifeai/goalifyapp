@@ -202,4 +202,14 @@ describe('ADD_USER_MESSAGE / ADD_COACH_REPLY', () => {
     expect(next.coachMessages[prevLen].role).toBe('coach');
     expect(next.coachMessages[prevLen].text).toBe('Focus on mornings.');
   });
+
+  it('keeps the upgrade flag on a coach reply', () => {
+    const next = appReducer(state(), { type: 'ADD_COACH_REPLY', text: 'limit', upgrade: true });
+    expect(next.coachMessages[next.coachMessages.length - 1]).toMatchObject({ role: 'coach', text: 'limit', upgrade: true });
+  });
+
+  it('leaves the upgrade flag off ordinary replies', () => {
+    const next = appReducer(state(), { type: 'ADD_COACH_REPLY', text: 'hi' });
+    expect(next.coachMessages[next.coachMessages.length - 1].upgrade).toBeUndefined();
+  });
 });

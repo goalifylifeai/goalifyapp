@@ -11,8 +11,11 @@ import { FilmOverlay } from '../../components/vision/FilmOverlay';
 import { useStore } from '../../store';
 import { useVisionAssets } from '../../store/vision';
 import { FINAL_STAGE } from '../../lib/vision-stage';
-import { PRO_VISION_AUDIO } from '../../constants/flags';
+import { VISION_SOUND_AVAILABLE } from '../../constants/flags';
+import { PAID_PLAN_SHORT } from '../../constants/brand';
 import { SPHERE_VISION_CAPTIONS } from '../../constants/data';
+import { usePlan } from '../../store/plan';
+import { openPaywall } from '../../lib/paywall';
 
 // Sound cue per life area, played once when the vision opens (Beyond only).
 // Clips are cropped, faded and levelled to ~-18 LUFS so none is louder than
@@ -31,6 +34,7 @@ export default function VisionFilmScreen() {
   const { goalId } = useLocalSearchParams<{ goalId: string }>();
   const { state } = useStore();
   const { getSignedUrl, getAsset } = useVisionAssets();
+  const { plan } = usePlan();
 
   const goal = state.goals.find(g => g.id === goalId);
   const caption = goal ? SPHERE_VISION_CAPTIONS[goal.sphere] : '';
@@ -52,7 +56,7 @@ export default function VisionFilmScreen() {
 
   // Sound cue (Beyond only): plays once, stops if the user closes the vision.
   useEffect(() => {
-    if (!PRO_VISION_AUDIO || !goal) return;
+    if (!VISION_SOUND_AVAILABLE || plan !== 'beyond' || !goal) return;
     const audioSource = VISION_SOUND[goal.sphere];
     let sound: import('expo-av').Audio.Sound | null = null;
     import('expo-av').then(({ Audio }) => {
@@ -61,7 +65,7 @@ export default function VisionFilmScreen() {
         .catch(() => {});
     }).catch(() => {});
     return () => { sound?.unloadAsync().catch(() => {}); };
-  }, [goal?.sphere]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [goal?.sphere, plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!goal) {
     return (
@@ -116,11 +120,16 @@ export default function VisionFilmScreen() {
         progress={goal.progress}
       />
 
-      {/* Pro audio lock badge (if audio not active) */}
-      {!PRO_VISION_AUDIO && (
-        <View style={s.audioBadge} pointerEvents="none">
-          <Text style={s.audioBadgeText}>♩ Ambient · Pro</Text>
-        </View>
+      {/* Ambient audio teaser on Free (U5) */}
+      {VISION_SOUND_AVAILABLE && plan === 'free' && (
+        <TouchableOpacity
+          style={s.audioBadge}
+          onPress={() => openPaywall('ambient_audio')}
+          accessibilityRole="button"
+          accessibilityLabel="Ambient audio with Goalify Beyond"
+        >
+          <Text style={s.audioBadgeText}>♩ Ambient · {PAID_PLAN_SHORT}</Text>
+        </TouchableOpacity>
       )}
     </View>
   );

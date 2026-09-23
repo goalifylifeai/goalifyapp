@@ -3,17 +3,20 @@ import {
   View, Text, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import type { SphereId } from '../../constants/theme';
 import { F } from '../../components/ui';
 import { useStore } from '../../store';
 import { newId } from '../../lib/id';
+import { usePlan } from '../../store/plan';
+import { finishWelcome } from '../../lib/paywall';
 
 export default function WelcomeAddTask() {
   const insets = useSafeAreaInsets();
   const { dispatch } = useStore();
+  const { loaded, isTrialEligible } = usePlan();
   const { goalId, goalTitle, sphere } = useLocalSearchParams<{
     goalId: string; goalTitle: string; sphere: SphereId;
   }>();
@@ -35,7 +38,7 @@ export default function WelcomeAddTask() {
 
   const save = () => {
     if (!goalId) {
-      router.replace('/(tabs)');
+      finishWelcome(loaded && isTrialEligible);
       return;
     }
 
@@ -43,17 +46,17 @@ export default function WelcomeAddTask() {
     if (task.trim()) finalSubtasks.push(task.trim());
 
     if (finalSubtasks.length === 0) {
-      router.replace('/(tabs)');
+      finishWelcome(loaded && isTrialEligible);
       return;
     }
 
     for (const t of finalSubtasks) {
       dispatch({ type: 'ADD_SUBTASK', goalId, subtask: { id: newId(), t, done: false } });
     }
-    router.replace('/(tabs)');
+    finishWelcome(loaded && isTrialEligible);
   };
 
-  const skip = () => router.replace('/(tabs)');
+  const skip = () => finishWelcome(loaded && isTrialEligible);
 
   return (
     <KeyboardAvoidingView

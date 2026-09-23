@@ -8,11 +8,13 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
+import { Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './auth';
+import { usePlan } from './plan';
 import type { SphereId } from '../constants/theme';
 import { FINAL_STAGE, type VisionStage } from '../lib/vision-stage';
-import { PRO_VISION_REGEN } from '../constants/flags';
+import { splitGenerationResults } from '../lib/vision-limit';
 
 export type VisionAssetStatus = 'pending' | 'generating' | 'ready' | 'error';
 
@@ -49,6 +51,8 @@ type VisionContextValue = {
   requestRegen: (goalId: string, stage: VisionStage, goalTitle: string, sphere: SphereId) => void;
   canRegen: (goalId: string, stage: VisionStage) => boolean;
   isGenerating: (goalId: string) => boolean;
+  isImageLimited: (goalId: string) => boolean;
+  retryGeneration: (goalId: string, goalTitle: string, sphere: SphereId) => void;
 };
 
 const VisionContext = createContext<VisionContextValue | null>(null);
@@ -60,10 +64,24 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
   const [assets, setAssets] = useState<AssetMap>({});
   const [urls, setUrls] = useState<UrlMap>({});
   const [assetsLoaded, setAssetsLoaded] = useState(false);
+  const [limited, setLimited] = useState<Record<string, true>>({});
   const generating = useRef<Set<string>>(new Set()); // goalIds currently generating
+  const { plan, loaded: planLoaded } = usePlan();
+
+  // The cap caption is plan-specific: once a (loaded) Free user becomes Beyond
+  // by any route — purchase, restore, another device — drop it so the banner
+  // stops saying the month's images are used up. Generation isn't retried
+  // here: the server may not have the new plan yet; the banner asks again on
+  // its next mount and the U4 continuation retries after the server sync.
+  const lastPlan = useRef<{ plan: string; loaded: boolean }>({ plan, loaded: planLoaded });
+  useEffect(() => {
+    const prev = lastPlan.current;
+    lastPlan.current = { plan, loaded: planLoaded };
+    if (planLoaded && plan === 'beyond' && prev.loaded && prev.plan !== 'beyond') setLimited({});
+  }, [plan, planLoaded]);
 
   const fetchAllAssets = useCallback(async () => {
-    if (!user) { setAssets({}); setAssetsLoaded(false); return; }
+    if (!user) { setAssets({}); setAssetsLoaded(false); setLimited({}); return; }
     const { data, error } = await supabase
       .from('vision_assets')
       .select('*')
@@ -147,34 +165,50 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
           }), 15_000);
           return;
         }
-        // Merge returned assets into state.
+        const { assets: rows, limitedGoalIds } = splitGenerationResults(data as Array<VisionAsset & { error?: string }>);
         setAssets(prev => {
           const next = { ...prev };
-          for (const row of data as VisionAsset[]) {
-            next[assetKey(row.goal_id, row.stage)] = row;
-          }
+          for (const row of rows) next[assetKey(row.goal_id, row.stage)] = row;
+          // Refused for the image cap: drop the local placeholder so nothing shimmers.
+          for (const id of limitedGoalIds) delete next[assetKey(id, FINAL_STAGE)];
           return next;
         });
+        if (limitedGoalIds.length) {
+          setLimited(prev => ({ ...prev, ...Object.fromEntries(limitedGoalIds.map(id => [id, true as const])) }));
+        }
       })
       .catch(() => { generating.current.delete(goalId); });
   }, [user, assets]);
+
+  const retryGeneration = useCallback((goalId: string, goalTitle: string, sphere: SphereId) => {
+    setLimited(prev => { const next = { ...prev }; delete next[goalId]; return next; });
+    requestGeneration(goalId, goalTitle, sphere);
+  }, [requestGeneration]);
 
   const requestRegen = useCallback((goalId: string, stage: VisionStage, goalTitle: string, sphere: SphereId) => {
     if (!user) return;
     const asset = assets[assetKey(goalId, stage)];
     if (!canRegenAsset(asset)) return;
 
+    const key = assetKey(goalId, stage);
+    const previousStatus = asset!.status;
     setAssets(prev => ({
       ...prev,
-      [assetKey(goalId, stage)]: prev[assetKey(goalId, stage)]
-        ? { ...prev[assetKey(goalId, stage)]!, status: 'generating' }
-        : undefined,
+      [key]: prev[key] ? { ...prev[key]!, status: 'generating' } : undefined,
     }));
+
+    // e.g. 403 pro_required while the subscription is still syncing, or quota.
+    const failed = () => {
+      setAssets(prev => (prev[key]?.status === 'generating'
+        ? { ...prev, [key]: { ...prev[key]!, status: previousStatus } }
+        : prev));
+      Alert.alert("Couldn't regenerate", 'Please try again later.');
+    };
 
     supabase.functions
       .invoke('generate-vision', { body: { goal_id: goalId, goal_title: goalTitle, sphere, regen: true } })
       .then(({ data, error }) => {
-        if (error || !data) return;
+        if (error || !data) { failed(); return; }
         setAssets(prev => {
           const next = { ...prev };
           for (const row of data as VisionAsset[]) {
@@ -185,11 +219,13 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
         // Invalidate cached signed URL so it refreshes with the new path.
         setUrls(prev => { const n = { ...prev }; delete n[assetKey(goalId, stage)]; return n; });
       })
-      .catch(() => {});
+      .catch(failed);
   }, [user, assets]);
 
+  // Cooldown only. Whether the user may regenerate at all (Beyond) is decided
+  // by the UI (FilmOverlay opens the paywall on Free) and enforced by the server.
   const canRegenAsset = (asset: VisionAsset | undefined): boolean => {
-    if (!asset || !PRO_VISION_REGEN) return false;
+    if (!asset) return false;
     if (!asset.last_regen_at) return true;
     return Date.now() - new Date(asset.last_regen_at).getTime() > REGEN_COOLDOWN_MS;
   };
@@ -202,7 +238,9 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
     requestRegen,
     canRegen: (goalId, stage) => canRegenAsset(assets[assetKey(goalId, stage)]),
     isGenerating: (goalId) => generating.current.has(goalId),
-  }), [assetsLoaded, assets, urls, requestGeneration, requestRegen]);
+    isImageLimited: (goalId) => !!limited[goalId],
+    retryGeneration,
+  }), [assetsLoaded, assets, urls, requestGeneration, requestRegen, limited, retryGeneration]);
 
   return <VisionContext.Provider value={value}>{children}</VisionContext.Provider>;
 }
