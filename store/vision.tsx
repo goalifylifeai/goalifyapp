@@ -183,8 +183,7 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
   }, [user, assets]);
 
   const canRegenAsset = (asset: VisionAsset | undefined): boolean => {
-    if (!asset) return false;
-    if (PRO_VISION_REGEN) return true;
+    if (!asset || !PRO_VISION_REGEN) return false;
     if (!asset.last_regen_at) return true;
     return Date.now() - new Date(asset.last_regen_at).getTime() > REGEN_COOLDOWN_MS;
   };

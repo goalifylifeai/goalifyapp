@@ -66,6 +66,11 @@ const FINAL_STAGE: VisionStage = 3;
 // Enforced via consume_ai_quota (migration 0016); idempotent hits don't count.
 const DAILY_IMAGE_LIMIT = 6;
 
+// Regenerating (a second image for the same goal) is a Pro feature, so free
+// users get exactly one image per goal. There's no subscription check yet,
+// so it's off for everyone; replace with a real entitlement lookup later.
+const PRO_REGEN_ENABLED = false;
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
@@ -104,6 +109,9 @@ Deno.serve(async (req: Request) => {
   const { goal_id, regen = false } = body;
   if (!goal_id) {
     return new Response(JSON.stringify({ error: 'goal_id required' }), { status: 400 });
+  }
+  if (regen && !PRO_REGEN_ENABLED) {
+    return new Response(JSON.stringify({ error: 'pro_required' }), { status: 403 });
   }
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -148,7 +156,7 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    // Rate limit for regens (free tier: 7-day cooldown).
+    // Rate limit for regens (7-day cooldown per image).
     if (regen && existingRow?.last_regen_at) {
       const lastRegen = new Date(existingRow.last_regen_at as string).getTime();
       if (Date.now() - lastRegen < REGEN_COOLDOWN_MS) {

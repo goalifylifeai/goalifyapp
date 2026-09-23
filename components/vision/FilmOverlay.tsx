@@ -23,12 +23,8 @@ export function FilmOverlay({ goalId, goalTitle, sphere, caption, progress }: Pr
 
   const handleRegen = () => {
     if (isGenerating) return;
-    if (!canRegen(goalId, FINAL_STAGE) && !PRO_VISION_REGEN) {
-      Alert.alert(
-        'Regen limit reached',
-        'Free plan allows one regeneration per week. Upgrade to Pro for unlimited.',
-        [{ text: 'OK' }],
-      );
+    if (!canRegen(goalId, FINAL_STAGE)) {
+      Alert.alert('Regen limit reached', 'You can regenerate this image once a week.', [{ text: 'OK' }]);
       return;
     }
     Alert.alert(
@@ -46,30 +42,32 @@ export function FilmOverlay({ goalId, goalTitle, sphere, caption, progress }: Pr
 
   return (
     <>
-      {/* Progress + regen row */}
+      {/* Progress + regen row. Free plan: one image per goal, so no regen. */}
       <View style={s.stageRow}>
         <Text style={s.stageLabel}>{Math.round(progress * 100)}% of the way there</Text>
 
-        <TouchableOpacity
-          onPress={handleRegen}
-          style={[s.regenBtn, isGenerating && s.regenBtnDisabled]}
-          disabled={isGenerating}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          {isGenerating ? (
-            <Text style={s.regenText}>…</Text>
-          ) : (
-            <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-              <Path
-                d="M13.5 8a5.5 5.5 0 1 1-1.5-3.79M13.5 2v3.5H10"
-                stroke="rgba(255,255,255,0.8)"
-                strokeWidth={1.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
-          )}
-        </TouchableOpacity>
+        {PRO_VISION_REGEN && (
+          <TouchableOpacity
+            onPress={handleRegen}
+            style={[s.regenBtn, isGenerating && s.regenBtnDisabled]}
+            disabled={isGenerating}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {isGenerating ? (
+              <Text style={s.regenText}>…</Text>
+            ) : (
+              <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+                <Path
+                  d="M13.5 8a5.5 5.5 0 1 1-1.5-3.79M13.5 2v3.5H10"
+                  stroke="rgba(255,255,255,0.8)"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Caption card */}
