@@ -57,18 +57,18 @@ export default function ProfileScreen() {
 
   const fmt = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const onMorningChange = (_: unknown, date?: Date) => {
+  const onMorningChange = (e: { type?: string } | undefined, date?: Date) => {
     if (Platform.OS === 'android') setShowMorningPicker(false);
-    if (!date) return;
+    if (e?.type === 'dismissed' || !date) return; // Android Cancel
     setMorningTime(date);
     saveNotificationTimes({ morningHour: date.getHours(), morningMinute: date.getMinutes() })
       .then(() => scheduleMorningNotification())
       .catch(() => {});
   };
 
-  const onEveningChange = (_: unknown, date?: Date) => {
+  const onEveningChange = (e: { type?: string } | undefined, date?: Date) => {
     if (Platform.OS === 'android') setShowEveningPicker(false);
-    if (!date) return;
+    if (e?.type === 'dismissed' || !date) return; // Android Cancel
     setEveningTime(date);
     saveNotificationTimes({ eveningHour: date.getHours(), eveningMinute: date.getMinutes() })
       .then(() => scheduleEveningClose())
