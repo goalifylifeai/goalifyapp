@@ -19,6 +19,7 @@ jest.mock('expo-notifications', () => ({
 }));
 
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+jest.mock('../lib/analytics', () => ({ track: jest.fn() }));
 
 jest.mock('../lib/notification-prefs', () => ({
   getNotificationTimes: jest.fn().mockResolvedValue({ morningHour: 7, morningMinute: 0, eveningHour: 21, eveningMinute: 0 }),

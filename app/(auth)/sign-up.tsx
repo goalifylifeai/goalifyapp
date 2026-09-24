@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { F } from '../../components/ui';
 import { useAuth } from '../../store/auth';
+import { track } from '../../lib/analytics';
 
 export default function SignUp() {
   const insets = useSafeAreaInsets();
@@ -20,6 +21,7 @@ export default function SignUp() {
   const onSubmit = async () => {
     setBusy(true); setError(null); setInfo(null);
     const { error: err } = await signUp(email.trim(), password);
+    track(err ? 'auth_failed' : 'signed_up', err ? { method: 'email', stage: 'sign_up' } : { method: 'email' });
     if (err) setError(err.message);
     else setInfo('Check your email to confirm your account, then sign in.');
     setBusy(false);

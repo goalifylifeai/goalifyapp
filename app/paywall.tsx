@@ -12,6 +12,7 @@ import {
   annualSavingsPercent, dropPendingAction, paywallHeadline, primaryLabel, renewalTerms, takePendingAction,
 } from '../lib/paywall';
 import type { PaywallSource } from '../lib/plan-state';
+import { track } from '../lib/analytics';
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
@@ -24,10 +25,23 @@ export default function PaywallScreen() {
   const finished = useRef(false);
 
   // A swipe-down dismiss unmounts without pressing a button: drop the continuation.
-  useEffect(() => () => { if (!finished.current) dropPendingAction(token); }, [token]);
+  useEffect(() => () => {
+    if (finished.current) return;
+    dropPendingAction(token);
+    track('paywall_dismissed', { source });
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pkg = (period === 'annual' ? packages.annual : packages.monthly) ?? packages.monthly ?? packages.annual;
   const eligible = trialEligibleFor(pkg);
+
+  // Once per opening, after the plan loaded, so trial eligibility and prices are
+  // known. Not for Beyond users: the paywall closes itself for them (below).
+  const viewed = useRef(false);
+  useEffect(() => {
+    if (!loaded || viewed.current || plan === 'beyond') return;
+    viewed.current = true;
+    track('paywall_viewed', { source, trial_eligible: eligible, packages_available: available && !!pkg });
+  }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const savings = annualSavingsPercent(packages.monthly, packages.annual);
 
   const unlocked = () => {
@@ -48,6 +62,7 @@ export default function PaywallScreen() {
 
   const close = () => {
     finished.current = true;
+    track('paywall_dismissed', { source });
     dropPendingAction(token);
     router.back();
   };
@@ -55,9 +70,11 @@ export default function PaywallScreen() {
   const onBuy = async () => {
     if (!pkg || busy) return;
     setBusy(true);
+    track('purchase_started', { source, period: pkg.period, trial_eligible: eligible });
     try {
       if (await purchase(pkg, source) === 'purchased') unlocked();
     } catch (e) {
+      track('purchase_failed', { source, period: pkg.period });
       Alert.alert('Purchase failed', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setBusy(false);
@@ -68,9 +85,12 @@ export default function PaywallScreen() {
     if (busy) return;
     setBusy(true);
     try {
-      if (await restore() === 'beyond') unlocked();
+      const restored = await restore();
+      track('restore_completed', { result: restored === 'beyond' ? 'beyond' : 'none' });
+      if (restored === 'beyond') unlocked();
       else Alert.alert('No subscription found', `We couldn't find a ${PAID_PLAN_NAME} subscription for this account.`);
     } catch {
+      track('restore_completed', { result: 'error' });
       Alert.alert('Restore failed', 'Please try again.');
     } finally {
       setBusy(false);

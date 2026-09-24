@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { deletePerson } from '../_shared/analytics.ts';
 import { CORS_HEADERS, json, preflight } from '../_shared/http.ts';
 
 Deno.serve(async (req: Request) => {
@@ -22,6 +23,7 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(url, serviceKey);
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) return json({ error: error.message }, 500);
+  await deletePerson(Deno.env, user.id);
 
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 });

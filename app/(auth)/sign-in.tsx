@@ -6,6 +6,7 @@ import { COLORS } from '../../constants/theme';
 import { F } from '../../components/ui';
 import { useAuth } from '../../store/auth';
 import { mapAuthError } from '../../lib/auth-errors';
+import { track } from '../../lib/analytics';
 
 export default function SignIn() {
   const insets = useSafeAreaInsets();
@@ -18,6 +19,8 @@ export default function SignIn() {
   const onSubmit = async () => {
     setBusy(true); setError(null);
     const { error: err } = await signIn(email.trim(), password);
+    if (err) track('auth_failed', { method: 'email', stage: 'sign_in' });
+    else track('signed_in', { method: 'email' });
     if (err) setError(mapAuthError(err.message));
     setBusy(false);
   };

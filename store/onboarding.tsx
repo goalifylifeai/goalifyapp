@@ -8,6 +8,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { supabase } from '../lib/supabase';
+import { track, setPersonProps } from '../lib/analytics';
 import { useAuth } from './auth';
 import {
   nextStep,
@@ -86,6 +87,14 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         .single();
       if (err) return { error: err.message };
       setState(data as OnboardingState);
+      // advance() is also used after onboarding (e.g. adding a sphere from the welcome flow).
+      if (state.current_step !== 'complete') {
+        track('onboarding_step_completed', {
+          step: state.current_step,
+          ...(stepKey === 'spheres' ? { spheres_count: merged.spheres?.length ?? 0 } : {}),
+          ...(stepKey === 'coaching_tone' && merged.coaching_tone ? { tone: merged.coaching_tone } : {}),
+        });
+      }
       return { error: null };
     },
     [user, state],
@@ -108,6 +117,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         .single();
       if (err) return { error: err.message };
       setState(data as OnboardingState);
+      setPersonProps({
+        onboarding_completed: true,
+        spheres_count: merged.spheres?.length ?? 0,
+        ...(merged.coaching_tone ? { onboarding_tone: merged.coaching_tone } : {}),
+      });
 
       // Mirror display_name + pronouns into profile.
       const profilePatch: Record<string, unknown> = {};

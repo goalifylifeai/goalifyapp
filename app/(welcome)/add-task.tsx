@@ -12,6 +12,7 @@ import { useStore } from '../../store';
 import { newId } from '../../lib/id';
 import { usePlan } from '../../store/plan';
 import { finishWelcome } from '../../lib/paywall';
+import { track } from '../../lib/analytics';
 
 export default function WelcomeAddTask() {
   const insets = useSafeAreaInsets();
@@ -50,13 +51,17 @@ export default function WelcomeAddTask() {
       return;
     }
 
+    track('welcome_task_step', { action: 'saved', task_count: finalSubtasks.length });
     for (const t of finalSubtasks) {
       dispatch({ type: 'ADD_SUBTASK', goalId, subtask: { id: newId(), t, done: false } });
     }
     finishWelcome(loaded && isTrialEligible);
   };
 
-  const skip = () => finishWelcome(loaded && isTrialEligible);
+  const skip = () => {
+    track('welcome_task_step', { action: 'skipped', task_count: 0 });
+    finishWelcome(loaded && isTrialEligible);
+  };
 
   return (
     <KeyboardAvoidingView

@@ -5,7 +5,7 @@ require('dotenv/config');
 module.exports = {
   expo: {
     name: 'Goalify',
-    slug: 'goalify',
+    slug: 'goalifylifeai',
     owner: 'goalifyais-organization',
     version: '1.0.0',
     orientation: 'portrait',
@@ -92,6 +92,9 @@ module.exports = {
       revenuecatIosKey: process.env.REVENUECAT_IOS_KEY ?? '',
       revenuecatAndroidKey: process.env.REVENUECAT_ANDROID_KEY ?? '',
       revenuecatWebKey: process.env.REVENUECAT_WEB_KEY ?? '',
+      // PostHog project API key (public). Empty = analytics off. See docs/analytics.md.
+      posthogApiKey: process.env.POSTHOG_API_KEY ?? '',
+      posthogHost: process.env.POSTHOG_HOST ?? 'https://eu.i.posthog.com',
       eas: {
         projectId: '688a053f-42b8-4e44-b220-7aa3c03b15ba',
       },

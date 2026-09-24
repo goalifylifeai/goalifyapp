@@ -13,6 +13,7 @@ import { usePlan } from '../../store/plan';
 import { openPaywall } from '../../lib/paywall';
 import { showInsightsUpsell } from '../../lib/coach-upsell';
 import { PAID_PLAN_NAME } from '../../constants/brand';
+import { track } from '../../lib/analytics';
 
 type CoachTab = 'insights' | 'weekly' | 'vision' | 'future';
 
@@ -70,13 +71,23 @@ function CoachInsights() {
     setReply('');
     setAsking(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    track('coach_message_sent');
+    const startedAt = Date.now();
     askCoach(text)
-      .then(coachReply => dispatch({ type: 'ADD_COACH_REPLY', text: coachReply }))
-      .catch(err => dispatch({
-        type: 'ADD_COACH_REPLY',
-        text: err instanceof CoachLimitError ? err.message : "I couldn't reach your coach just now — try again in a moment.",
-        upgrade: err instanceof CoachLimitError && err.upgrade,
-      }))
+      .then(coachReply => {
+        track('coach_reply_received', { outcome: 'ok', latency_ms: Date.now() - startedAt });
+        dispatch({ type: 'ADD_COACH_REPLY', text: coachReply });
+      })
+      .catch(err => {
+        const limited = err instanceof CoachLimitError;
+        track('coach_reply_received', { outcome: limited ? 'limit' : 'error', latency_ms: Date.now() - startedAt });
+        if (limited) track('coach_limit_hit', { upgrade_offered: err.upgrade });
+        dispatch({
+          type: 'ADD_COACH_REPLY',
+          text: limited ? err.message : "I couldn't reach your coach just now — try again in a moment.",
+          upgrade: limited && err.upgrade,
+        });
+      })
       .finally(() => {
         setAsking(false);
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);

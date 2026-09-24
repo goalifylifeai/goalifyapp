@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { F } from '../components/ui';
 import { PAID_PLAN_NAME } from '../constants/brand';
+import { track } from '../lib/analytics';
 
 const CHANGES = [
   'Coach chat: 10 messages in total',
@@ -26,11 +27,17 @@ export default function TrialEndedScreen() {
 
       <TouchableOpacity
         style={s.cta}
-        onPress={() => router.replace({ pathname: '/paywall', params: { source: 'trial_ended' } })}
+        onPress={() => {
+          track('trial_ended_action', { action: 'upgrade' });
+          router.replace({ pathname: '/paywall', params: { source: 'trial_ended' } });
+        }}
       >
         <Text style={s.ctaText}>Resubscribe</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={s.secondary} onPress={() => router.back()}>
+      <TouchableOpacity
+        style={s.secondary}
+        onPress={() => { track('trial_ended_action', { action: 'dismiss' }); router.back(); }}
+      >
         <Text style={s.secondaryText}>Continue with Free</Text>
       </TouchableOpacity>
     </ScrollView>

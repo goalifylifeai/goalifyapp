@@ -8,6 +8,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { supabase } from '../lib/supabase';
+import { clearQueue } from '../lib/offline-queue';
 import { useAuth } from './auth';
 
 export type Profile = {
@@ -80,6 +81,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const deleteAccount = useCallback(async () => {
     const { error: err } = await supabase.functions.invoke('delete-account');
     if (err) return { error: err.message };
+    // Unsynced writes (journal text included) belong to the deleted account.
+    await clearQueue().catch(() => {});
     await supabase.auth.signOut();
     return { error: null };
   }, []);

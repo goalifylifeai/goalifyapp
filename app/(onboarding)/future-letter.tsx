@@ -7,6 +7,7 @@ import { F } from '../../components/ui';
 import { useOnboarding } from '../../store/onboarding';
 import { useFutureSelf, type FutureLetterHorizon } from '../../store/future-self';
 import { Progress } from './_progress';
+import { track } from '../../lib/analytics';
 
 const HORIZONS: { id: FutureLetterHorizon; label: string }[] = [
   { id: '1m', label: '1 month' },
@@ -46,6 +47,7 @@ export default function FutureLetterStep() {
       setBusy(false);
       return;
     }
+    track('onboarding_completed', { letter_written: !skip && body.trim().length > 0 });
     router.replace('/(welcome)/add-goal');
   };
 

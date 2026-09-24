@@ -7,6 +7,7 @@ import { COLORS } from '../../constants/theme';
 import { Card, SectionLabel, F } from '../../components/ui';
 import { useCircles } from '../../store/circles';
 import { useAuth } from '../../store/auth';
+import { track } from '../../lib/analytics';
 
 export default function CircleDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -23,6 +24,7 @@ export default function CircleDetailScreen() {
 
   const onShareCode = () => {
     if (!circle) return;
+    track('circle_invite_shared');
     const message = `Join my Goalify circle "${circle.name}" — use invite code ${circle.invite_code}`;
     if (Platform.OS === 'web') {
       Share.share({ title: 'Circle invite', message }).catch(() => {});

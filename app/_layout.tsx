@@ -9,7 +9,7 @@ import {
   JetBrainsMono_500Medium,
 } from '@expo-google-fonts/jetbrains-mono';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { Analytics } from '@vercel/analytics/react';
 import * as Notifications from 'expo-notifications';
@@ -27,16 +27,22 @@ import { VisionAssetsProvider } from '../store/vision';
 import { CoachAiProvider } from '../store/coach-ai';
 import { CirclesProvider } from '../store/circles';
 import { TrialWatcher } from '../components/TrialWatcher';
+import { AnalyticsBridge } from '../components/analytics/AnalyticsBridge';
+import { track, useAnalyticsConsent } from '../lib/analytics';
+import { notificationKind } from '../lib/analytics-screen';
 import { decideRoute } from '../lib/auth-route';
 import { ensureNotificationsScheduled, ensureHabitRemindersScheduled } from '../lib/notifications';
 import { useStore } from '../store';
 
 SplashScreen.preventAutoHideAsync();
 
+const CONSENT_PROMPT_GROUPS = ['(onboarding)', '(welcome)', '(tabs)'];
+
 function NotificationListener() {
   const router = useRouter();
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      track('notification_opened', { kind: notificationKind(response.notification.request.identifier) });
       const screen = response.notification.request.content.data?.screen as string | undefined;
       if (screen === 'morning') router.push('/ritual/morning' as any);
       else if (screen === 'evening') router.push('/ritual/evening' as any);
@@ -70,6 +76,8 @@ function AuthGate({ children }: { children: ReactNode }) {
   const { state: onboarding, loading: onboardingLoading } = useOnboarding();
   const segments = useSegments();
   const router = useRouter();
+  const consent = useAnalyticsConsent();
+  const consentAsked = useRef(false);
 
   useEffect(() => {
     const target = decideRoute({
@@ -79,8 +87,20 @@ function AuthGate({ children }: { children: ReactNode }) {
       onboardingCompleted: !!onboarding?.completed_at,
       currentStep: onboarding?.current_step ?? null,
     });
-    if (target) router.replace(target as any);
-  }, [status, onboarding, onboardingLoading, segments, router]);
+    if (target) {
+      router.replace(target as any);
+      return;
+    }
+    // Ask for analytics consent once the user is settled in the app (never over
+    // a redirect that is about to happen, the paywall or another modal).
+    if (
+      consent === 'unset' && !consentAsked.current && status === 'signed-in' && !!onboarding
+      && CONSENT_PROMPT_GROUPS.includes(segments[0] as string)
+    ) {
+      consentAsked.current = true;
+      router.push('/analytics-consent' as any);
+    }
+  }, [status, onboarding, onboardingLoading, segments, router, consent]);
 
   if (status === 'loading') {
     return (
@@ -121,6 +141,7 @@ export default function RootLayout() {
               <CirclesProvider>
                 <AuthGate>
                   {Platform.OS === 'web' && <Analytics />}
+                  <AnalyticsBridge />
                   <NotificationListener />
                   <RitualScheduler />
                   <HabitReminderScheduler />
@@ -139,6 +160,7 @@ export default function RootLayout() {
                     <Stack.Screen name="streak-info" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="paywall" options={{ presentation: 'modal', gestureEnabled: true }} />
                     <Stack.Screen name="trial-ended" options={{ presentation: 'modal', gestureEnabled: true }} />
+                    <Stack.Screen name="analytics-consent" options={{ presentation: 'modal', gestureEnabled: false }} />
                     <Stack.Screen name="ritual" />
                     <Stack.Screen name="vision" />
                     <Stack.Screen name="circles" />

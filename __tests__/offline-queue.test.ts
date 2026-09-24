@@ -91,6 +91,58 @@ describe('offline-queue', () => {
     expect(q[0].id).toBe('persist-me');
   });
 
+  it('drainQueue for an owner replays that owner and discards other accounts\' writes', async () => {
+    // A different account signed in on this device: the previous account's
+    // unsynced data (journal bodies included) must not stay behind.
+    await enqueue(makeItem({ id: 'mine', owner: 'user-a' }));
+    await enqueue(makeItem({ id: 'theirs', owner: 'user-b' }));
+    const sync = jest.fn().mockResolvedValue(undefined);
+
+    await drainQueue(sync, 'user-a');
+
+    expect(sync.mock.calls.map(c => c[0].id)).toEqual(['mine']);
+    expect(await getQueue()).toEqual([]);
+  });
+
+  it('drainQueue treats an untagged item by its payload user_id', async () => {
+    await enqueue(makeItem({ id: 'legacy-mine', payload: { id: 'g1', user_id: 'user-a' } }));
+    await enqueue(makeItem({ id: 'legacy-theirs', payload: { id: 'g2', user_id: 'user-b' } }));
+    const sync = jest.fn().mockResolvedValue(undefined);
+
+    await drainQueue(sync, 'user-a');
+
+    expect(sync.mock.calls.map(c => c[0].id)).toEqual(['legacy-mine']);
+    expect(await getQueue()).toEqual([]);
+  });
+
+  it('a clear during a drain is not undone when the drain finishes', async () => {
+    // Account deletion clears the queue; an in-flight drain must not write
+    // the deleted account's failed items back.
+    await enqueue(makeItem({ id: 'journal:j1', owner: 'user-a' }));
+    let release!: () => void;
+    const gate = new Promise<void>(r => { release = r; });
+
+    const draining = drainQueue(async () => { await gate; throw new Error('401'); }, 'user-a');
+    await clearQueue();
+    release();
+    await draining;
+
+    expect(await getQueue()).toEqual([]);
+  });
+
+  it('keeps items enqueued while a drain is running', async () => {
+    await enqueue(makeItem({ id: 'old' }));
+    let release!: () => void;
+    const gate = new Promise<void>(r => { release = r; });
+
+    const draining = drainQueue(async () => { await gate; });
+    await enqueue(makeItem({ id: 'during' }));
+    release();
+    await draining;
+
+    expect((await getQueue()).map(i => i.id)).toEqual(['during']);
+  });
+
   it('clearQueue empties the queue', async () => {
     await enqueue(makeItem());
     await clearQueue();

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { F } from '../../components/ui';
 import { useAuth } from '../../store/auth';
+import { track } from '../../lib/analytics';
 
 export default function AuthLanding() {
   const insets = useSafeAreaInsets();
@@ -12,15 +13,23 @@ export default function AuthLanding() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Cancelling the system sheet isn't a failure worth counting.
+  const report = (method: 'google' | 'apple', err: Error | null) => {
+    if (!err) track('signed_in', { method });
+    else if (!/cancel/i.test(err.message)) track('auth_failed', { method, stage: 'sign_in' });
+  };
+
   const onGoogle = async () => {
     setBusy('google'); setError(null);
     const { error: err } = await signInWithGoogle();
+    report('google', err);
     if (err) setError(err.message);
     setBusy(null);
   };
   const onApple = async () => {
     setBusy('apple'); setError(null);
     const { error: err } = await signInWithApple();
+    report('apple', err);
     if (err) setError(err.message);
     setBusy(null);
   };
