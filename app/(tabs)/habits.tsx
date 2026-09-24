@@ -257,9 +257,10 @@ export default function HabitsScreen() {
                   value={(() => { const d = new Date(); d.setHours(h.reminderHour ?? 8, h.reminderMinute ?? 0, 0, 0); return d; })()}
                   mode="time"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={(_e, date) => {
+                  onChange={(e, date) => {
                     setReminderPickerFor(null);
-                    if (!date) return;
+                    // Android reports Cancel as a change carrying the original value.
+                    if (e?.type === 'dismissed' || !date) return;
                     setReminder(h, date.getHours(), date.getMinutes());
                   }}
                 />
