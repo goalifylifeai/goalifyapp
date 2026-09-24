@@ -71,6 +71,13 @@ describe('eventsForAction', () => {
     expect(e).toEqual({ name: 'journal_entry_created', props: { sentiment: 4, word_count_bucket: '1-20' } });
   });
 
+  it('habit_deleted carries sphere and streak', () => {
+    const prev = { ...initialState, habits: [habit] };
+    expect(run({ type: 'REMOVE_HABIT', id: 'h1' }, prev))
+      .toEqual([{ name: 'habit_deleted', props: { sphere: habit.sphere, streak: habit.streak } }]);
+    expect(run({ type: 'REMOVE_HABIT', id: 'nope' })).toEqual([]);
+  });
+
   it('habit_reminder_set distinguishes clearing a reminder', () => {
     expect(run({ type: 'SET_HABIT_REMINDER', id: 'h1', hour: null, minute: null }))
       .toEqual([{ name: 'habit_reminder_set', props: { enabled: false } }]);

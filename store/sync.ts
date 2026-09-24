@@ -131,6 +131,12 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
       break;
     }
 
+    case 'REMOVE_HABIT': {
+      // habit_logs rows go with it (ON DELETE CASCADE).
+      await check(supabase.from('habits').delete().eq('id', action.id).eq('user_id', userId));
+      break;
+    }
+
     case 'SET_HABIT_CALENDAR_ID': {
       await check(supabase.from('habits').update({ calendar_event_id: action.calendarEventId }).eq('id', action.id).eq('user_id', userId));
       break;
@@ -272,6 +278,17 @@ function actionToQueueItems(action: AppAction, state: AppState, userId: string):
         table: 'habits',
         operation: 'upsert',
         payload: { id: h.id, user_id: userId, label: h.label, icon: h.icon, sphere: h.sphere, target_description: h.target },
+        created_at: now,
+        retries: 0,
+      });
+      break;
+    }
+    case 'REMOVE_HABIT': {
+      items.push({
+        id: `habit_del:${action.id}`,
+        table: 'habits',
+        operation: 'delete',
+        payload: { id: action.id },
         created_at: now,
         retries: 0,
       });

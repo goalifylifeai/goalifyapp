@@ -82,6 +82,7 @@ PostHog adds `$os`, `$app_version` and lifecycle events (`Application Opened/Ins
 | | `subtask_added` / `subtask_toggled` | `done`, `goal_progress_pct`, `goal_completed` | same |
 | | `habit_created` / `habit_checked` | `sphere`, `linked_to_goal` / `done`, `streak`, `sphere` | same |
 | | `habit_reminder_set` | `enabled`, `hour` | same |
+| | `habit_deleted` | `sphere`, `streak` | same |
 | | `task_created` / `task_toggled` | `sphere` / `done` | same |
 | | `journal_entry_created` | `sentiment`, `word_count_bucket` | same |
 

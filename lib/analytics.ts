@@ -42,6 +42,7 @@ export type EventMap = {
   subtask_toggled: { done: boolean; goal_progress_pct: number; goal_completed: boolean };
   habit_created: { sphere: SphereId; linked_to_goal: boolean };
   habit_checked: { done: boolean; streak: number; sphere: SphereId };
+  habit_deleted: { sphere: SphereId; streak: number };
   habit_reminder_set: { enabled: boolean; hour?: number };
   task_created: { sphere: SphereId };
   task_toggled: { done: boolean };

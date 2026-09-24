@@ -56,6 +56,11 @@ export function eventsForAction(action: AppAction, prev: AppState, next: AppStat
       const h = action.habit;
       return [{ name: 'habit_created', props: { sphere: h.sphere, linked_to_goal: !!h.goalId } }];
     }
+    case 'REMOVE_HABIT': {
+      const h = prev.habits.find(x => x.id === action.id);
+      if (!h) return [];
+      return [{ name: 'habit_deleted', props: { sphere: h.sphere, streak: h.streak } }];
+    }
     case 'TOGGLE_HABIT': {
       const h = next.habits.find(x => x.id === action.id);
       if (!h) return [];

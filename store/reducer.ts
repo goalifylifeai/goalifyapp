@@ -57,6 +57,7 @@ export type AppAction =
   | { type: 'ADD_SUBTASK'; goalId: string; subtask: Subtask }
   | { type: 'TOGGLE_HABIT'; id: string }
   | { type: 'ADD_HABIT'; habit: HabitItem }
+  | { type: 'REMOVE_HABIT'; id: string }
   | { type: 'SET_HABIT_CALENDAR_ID'; id: string; calendarEventId: string }
   | { type: 'SET_HABIT_REMINDER'; id: string; hour: number | null; minute: number | null }
   | { type: 'ADD_JOURNAL'; entry: JournalEntry }
@@ -137,6 +138,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'ADD_HABIT':
       return { ...state, habits: [...state.habits, action.habit] };
+
+    case 'REMOVE_HABIT':
+      return { ...state, habits: state.habits.filter(h => h.id !== action.id) };
 
     case 'SET_HABIT_CALENDAR_ID':
       return {

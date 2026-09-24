@@ -185,6 +185,71 @@ describe('usePersistentStore — additional characterization', () => {
     );
   });
 
+  // ── REMOVE_HABIT ─────────────────────────────────────────────────
+  it('removes the habit locally and deletes it (logs cascade) on REMOVE_HABIT', async () => {
+    const { supabase } = getMocks();
+    const fromCalls: string[] = [];
+    const secondEq = jest.fn().mockResolvedValue({ error: null });
+    const firstEq = jest.fn(() => ({ eq: secondEq }));
+    supabase.from.mockImplementation((table: string) => {
+      fromCalls.push(table);
+      return {
+        upsert: jest.fn().mockResolvedValue({ error: null }),
+        delete: jest.fn(() => ({ eq: firstEq })),
+        select: jest.fn(() => ({
+          order: jest.fn().mockResolvedValue({ data: [], error: null }),
+          gte: jest.fn(() => ({ order: jest.fn().mockResolvedValue({ data: [], error: null }) })),
+        })),
+      };
+    });
+
+    const { result } = renderHook(() => usePersistentStore());
+    await signIn(result, 'user-habit-del');
+    act(() => {
+      result.current.dispatch({
+        type: 'HYDRATE',
+        state: { habits: [{ id: 'h-del', label: 'Walk', icon: '○', sphere: 'health', streak: 0, target: '1', doneToday: false }] },
+      } as AppAction);
+    });
+
+    act(() => {
+      result.current.dispatch({ type: 'REMOVE_HABIT', id: 'h-del' } as AppAction);
+    });
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    expect(result.current.state.habits).toEqual([]);
+    expect(fromCalls).toContain('habits');
+    expect(firstEq).toHaveBeenCalledWith('id', 'h-del');
+    expect(secondEq).toHaveBeenCalledWith('user_id', 'user-habit-del');
+  });
+
+  it('enqueues a habit delete when REMOVE_HABIT sync fails', async () => {
+    const { supabase, queueMock } = getMocks();
+    supabase.from.mockReturnValue({
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+      delete: jest.fn(() => ({ eq: jest.fn(() => ({ eq: jest.fn().mockRejectedValue(new Error('offline')) })) })),
+      select: jest.fn(() => ({
+        order: jest.fn().mockResolvedValue({ data: [], error: null }),
+        gte: jest.fn(() => ({ order: jest.fn().mockResolvedValue({ data: [], error: null }) })),
+      })),
+    });
+
+    const { result } = renderHook(() => usePersistentStore());
+    await signIn(result, 'user-habit-del2');
+    act(() => {
+      result.current.dispatch({ type: 'REMOVE_HABIT', id: 'h-off' } as AppAction);
+    });
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    expect(queueMock.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ table: 'habits', operation: 'delete', payload: { id: 'h-off' } }),
+    );
+  });
+
   // ── ADD_GOAL with subtasks: success + failure queueing (lines 66-100, 163-197) ─
   it('upserts the goal and its subtasks on ADD_GOAL', async () => {
     const { supabase } = getMocks();

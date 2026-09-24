@@ -7,7 +7,7 @@ import { SPHERE_LIST } from '../../constants/data';
 import { SectionLabel, Card, Heatmap, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
 import type { SphereId } from '../../constants/theme';
-import { exportHabitToCalendar } from '../../lib/calendar';
+import { exportHabitToCalendar, removeHabitFromCalendar } from '../../lib/calendar';
 import { localDateISO, streakFromDates } from '../../lib/date';
 import { requestNotificationPermission, scheduleHabitReminder, cancelHabitReminder } from '../../lib/notifications';
 import { newId } from '../../lib/id';
@@ -43,6 +43,7 @@ export default function HabitsScreen() {
   const [newTarget, setNewTarget] = useState('');
   const [newIcon, setNewIcon] = useState('○');
   const [reminderPickerFor, setReminderPickerFor] = useState<string | null>(null);
+  const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null);
 
   const toggle = (id: string) => dispatch({ type: 'TOGGLE_HABIT', id });
 
@@ -56,6 +57,15 @@ export default function HabitsScreen() {
   const clearReminder = async (habitId: string) => {
     await cancelHabitReminder(habitId);
     dispatch({ type: 'SET_HABIT_REMINDER', id: habitId, hour: null, minute: null });
+  };
+
+  // Confirmed inline rather than with Alert.alert, which does nothing on web.
+  const deleteHabit = (habit: typeof habits[number]) => {
+    setConfirmDeleteFor(null);
+    if (reminderPickerFor === habit.id) setReminderPickerFor(null);
+    dispatch({ type: 'REMOVE_HABIT', id: habit.id });
+    cancelHabitReminder(habit.id).catch(() => {});
+    if (habit.calendarEventId) removeHabitFromCalendar(habit.calendarEventId).catch(() => {});
   };
 
   const formatReminder = (h: number, m: number) => {
@@ -234,10 +244,11 @@ export default function HabitsScreen() {
                 ))}
               </View>
 
-              {/* Reminder */}
+              {/* Reminder + delete */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
               <TouchableOpacity
                 onPress={() => setReminderPickerFor(h.id)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
               >
                 <Text style={{ fontSize: 12, color: h.reminderHour != null ? s.accent : COLORS.ink4 }}>🔔</Text>
                 <Text style={{ fontFamily: F.mono, fontSize: 11, color: h.reminderHour != null ? COLORS.ink2 : COLORS.ink4 }}>
@@ -251,6 +262,26 @@ export default function HabitsScreen() {
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
+              {confirmDeleteFor !== h.id && (
+                <TouchableOpacity testID={`delete-habit-${h.id}`} onPress={() => setConfirmDeleteFor(h.id)} hitSlop={8}>
+                  <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink4 }}>Delete</Text>
+                </TouchableOpacity>
+              )}
+              </View>
+
+              {confirmDeleteFor === h.id && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 12, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: COLORS.ink6 }}>
+                  <Text style={{ flex: 1, fontFamily: F.mono, fontSize: 11, color: COLORS.ink2 }}>
+                    Delete this habit and its history?
+                  </Text>
+                  <TouchableOpacity onPress={() => setConfirmDeleteFor(null)} hitSlop={8}>
+                    <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3 }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity testID={`confirm-delete-habit-${h.id}`} onPress={() => deleteHabit(h)} hitSlop={8}>
+                    <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.accentWarm }}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {reminderPickerFor === h.id && (
                 <DateTimePicker
