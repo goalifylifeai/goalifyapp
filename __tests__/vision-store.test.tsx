@@ -47,6 +47,23 @@ describe('I3: requestRegen failure', () => {
   });
 });
 
+describe('images switched off for the account', () => {
+  it('stops asking, shows no cap caption and leaves no shimmering placeholder', async () => {
+    mockRows.mockResolvedValue({ data: [], error: null });
+    mockInvoke.mockResolvedValue({ data: [{ goal_id: 'g1', stage: FINAL_STAGE, status: 'pending', error: 'images_disabled' }], error: null });
+    const { result } = renderHook(() => useVisionAssets(), { wrapper });
+    await act(async () => { result.current.requestGeneration('g1', 'QA goal', 'career'); });
+
+    await waitFor(() => expect(result.current.isImagesDisabled('g1')).toBe(true));
+    expect(result.current.isImageLimited('g1')).toBe(false);
+    expect(result.current.getAsset('g1', FINAL_STAGE)).toBeUndefined();
+
+    mockInvoke.mockClear();
+    await act(async () => { result.current.requestGeneration('g1', 'QA goal', 'career'); });
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+});
+
 describe('I4: image cap', () => {
   it('clears the cap caption when the user becomes Beyond by any route', async () => {
     mockRows.mockResolvedValue({ data: [], error: null });

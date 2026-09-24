@@ -9,7 +9,12 @@ const ready: VisionAsset = {
 describe('splitGenerationResults', () => {
   it('separates image_limit results from real assets', () => {
     const limited = { ...ready, id: '', goal_id: 'g2', status: 'pending' as const, error: 'image_limit' };
-    expect(splitGenerationResults([ready, limited])).toEqual({ assets: [ready], limitedGoalIds: ['g2'] });
+    expect(splitGenerationResults([ready, limited])).toEqual({ assets: [ready], limitedGoalIds: ['g2'], disabledGoalIds: [] });
+  });
+
+  it('separates images_disabled results (accounts with images switched off)', () => {
+    const off = { ...ready, id: '', goal_id: 'g3', status: 'pending' as const, error: 'images_disabled' };
+    expect(splitGenerationResults([ready, off])).toEqual({ assets: [ready], limitedGoalIds: [], disabledGoalIds: ['g3'] });
   });
 });
 

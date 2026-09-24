@@ -53,6 +53,8 @@ type VisionContextValue = {
   canRegen: (goalId: string, stage: VisionStage) => boolean;
   isGenerating: (goalId: string) => boolean;
   isImageLimited: (goalId: string) => boolean;
+  /** Images are switched off for this account (QA): show the plain banner, never ask. */
+  isImagesDisabled: (goalId: string) => boolean;
   retryGeneration: (goalId: string, goalTitle: string, sphere: SphereId) => void;
 };
 
@@ -66,6 +68,7 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
   const [urls, setUrls] = useState<UrlMap>({});
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [limited, setLimited] = useState<Record<string, true>>({});
+  const [disabled, setDisabled] = useState<Record<string, true>>({});
   const generating = useRef<Set<string>>(new Set()); // goalIds currently generating
   const { plan, loaded: planLoaded } = usePlan();
 
@@ -125,7 +128,7 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
 
   const requestGeneration = useCallback((goalId: string, goalTitle: string, sphere: SphereId) => {
     if (!user) return;
-    if (generating.current.has(goalId)) return;
+    if (generating.current.has(goalId) || disabled[goalId]) return;
     // One image per goal (the final stage) — skip if it's already ready.
     const stages: VisionStage[] = [FINAL_STAGE];
     const allReady = stages.every(s => assets[assetKey(goalId, s)]?.status === 'ready');
@@ -167,14 +170,18 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
           }), 15_000);
           return;
         }
-        const { assets: rows, limitedGoalIds } = splitGenerationResults(data as Array<VisionAsset & { error?: string }>);
+        const { assets: rows, limitedGoalIds, disabledGoalIds } = splitGenerationResults(data as Array<VisionAsset & { error?: string }>);
         setAssets(prev => {
           const next = { ...prev };
           for (const row of rows) next[assetKey(row.goal_id, row.stage)] = row;
           // Refused for the image cap: drop the local placeholder so nothing shimmers.
-          for (const id of limitedGoalIds) delete next[assetKey(id, FINAL_STAGE)];
+          for (const id of [...limitedGoalIds, ...disabledGoalIds]) delete next[assetKey(id, FINAL_STAGE)];
           return next;
         });
+        if (disabledGoalIds.length) {
+          setDisabled(prev => ({ ...prev, ...Object.fromEntries(disabledGoalIds.map(id => [id, true as const])) }));
+          return;
+        }
         track('vision_generation_requested', { outcome: limitedGoalIds.length ? 'image_limit' : 'ready' });
         if (limitedGoalIds.length) {
           track('vision_limit_hit');
@@ -182,7 +189,7 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => { generating.current.delete(goalId); });
-  }, [user, assets]);
+  }, [user, assets, disabled]);
 
   const retryGeneration = useCallback((goalId: string, goalTitle: string, sphere: SphereId) => {
     setLimited(prev => { const next = { ...prev }; delete next[goalId]; return next; });
@@ -245,8 +252,9 @@ export function VisionAssetsProvider({ children }: { children: ReactNode }) {
     canRegen: (goalId, stage) => canRegenAsset(assets[assetKey(goalId, stage)]),
     isGenerating: (goalId) => generating.current.has(goalId),
     isImageLimited: (goalId) => !!limited[goalId],
+    isImagesDisabled: (goalId) => !!disabled[goalId],
     retryGeneration,
-  }), [assetsLoaded, assets, urls, requestGeneration, requestRegen, limited, retryGeneration]);
+  }), [assetsLoaded, assets, urls, requestGeneration, requestRegen, limited, disabled, retryGeneration]);
 
   return <VisionContext.Provider value={value}>{children}</VisionContext.Provider>;
 }
