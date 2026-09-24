@@ -4,6 +4,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
+import { imagesDisabledFor } from '../_shared/vision-access.ts';
 import { json, preflight } from '../_shared/http.ts';
 
 type SphereId = 'finance' | 'health' | 'career' | 'relationships';
@@ -133,6 +134,12 @@ Deno.serve(async (req: Request) => {
   const { goal_id, regen = false } = body;
   if (!goal_id) {
     return json({ error: 'goal_id required' }, 400);
+  }
+
+  // Accounts with images switched off (the QA account): answer before any
+  // quota or fal.ai call. The app treats this like the cap and stops asking.
+  if (imagesDisabledFor(user.id, Deno.env.get('VISION_DISABLED_USER_IDS'))) {
+    return json([{ goal_id, stage: FINAL_STAGE, status: 'pending', error: 'images_disabled' }]);
   }
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const plan = await getPlan(adminClient, user.id);
