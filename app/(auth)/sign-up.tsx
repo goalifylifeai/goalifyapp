@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { F } from '../../components/ui';
+import { AuthField, EMAIL_INPUT } from '../../components/AuthField';
 import { useAuth } from '../../store/auth';
 import { track } from '../../lib/analytics';
+import { mapAuthError } from '../../lib/auth-errors';
 
 export default function SignUp() {
   const insets = useSafeAreaInsets();
@@ -16,15 +18,23 @@ export default function SignUp() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const valid = /\S+@\S+\.\S+/.test(email) && password.length >= 8;
+  const passwordRef = useRef<TextInput>(null);
+
+  const valid = /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8;
 
   const onSubmit = async () => {
+    if (busy || !valid) return;
     setBusy(true); setError(null); setInfo(null);
-    const { error: err } = await signUp(email.trim(), password);
-    track(err ? 'auth_failed' : 'signed_up', err ? { method: 'email', stage: 'sign_up' } : { method: 'email' });
-    if (err) setError(err.message);
-    else setInfo('Check your email to confirm your account, then sign in.');
-    setBusy(false);
+    try {
+      const { error: err } = await signUp(email.trim(), password);
+      track(err ? 'auth_failed' : 'signed_up', err ? { method: 'email', stage: 'sign_up' } : { method: 'email' });
+      if (err) setError(err.message);
+      else setInfo('Check your email to confirm your account, then sign in.');
+    } catch (e) {
+      setError(mapAuthError((e as Error)?.message));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -40,8 +50,15 @@ export default function SignUp() {
         </Text>
 
         <View style={{ marginTop: 32, gap: 14 }}>
-          <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-          <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry />
+          <AuthField
+            label="Email" editable={!busy} value={email} onChangeText={setEmail}
+            {...EMAIL_INPUT} onSubmitEditing={() => passwordRef.current?.focus()} submitBehavior="submit"
+          />
+          <AuthField
+            ref={passwordRef} label="Password" editable={!busy} value={password} onChangeText={setPassword}
+            secureTextEntry autoComplete="new-password" textContentType="newPassword"
+            returnKeyType="go" onSubmitEditing={onSubmit}
+          />
         </View>
 
         {error && <Text style={{ fontFamily: F.mono, fontSize: 11, color: '#A33', marginTop: 16 }}>{error}</Text>}
@@ -57,19 +74,5 @@ export default function SignUp() {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
-  );
-}
-
-function Field(props: React.ComponentProps<typeof TextInput> & { label: string }) {
-  const { label, ...input } = props;
-  return (
-    <View>
-      <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 1.5, color: COLORS.ink3, textTransform: 'uppercase' }}>{label}</Text>
-      <TextInput
-        {...input}
-        placeholderTextColor={COLORS.ink4}
-        style={{ marginTop: 6, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.ink6, fontSize: 16, color: COLORS.ink1 }}
-      />
-    </View>
   );
 }

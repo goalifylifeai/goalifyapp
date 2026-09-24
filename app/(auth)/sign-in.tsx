@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { F } from '../../components/ui';
+import { AuthField, EMAIL_INPUT } from '../../components/AuthField';
 import { useAuth } from '../../store/auth';
 import { mapAuthError } from '../../lib/auth-errors';
 import { track } from '../../lib/analytics';
@@ -15,14 +16,23 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const passwordRef = useRef<TextInput>(null);
+
+  const canSubmit = !busy && !!email.trim() && !!password;
 
   const onSubmit = async () => {
+    if (!canSubmit) return;
     setBusy(true); setError(null);
-    const { error: err } = await signIn(email.trim(), password);
-    if (err) track('auth_failed', { method: 'email', stage: 'sign_in' });
-    else track('signed_in', { method: 'email' });
-    if (err) setError(mapAuthError(err.message));
-    setBusy(false);
+    try {
+      const { error: err } = await signIn(email.trim(), password);
+      if (err) track('auth_failed', { method: 'email', stage: 'sign_in' });
+      else track('signed_in', { method: 'email' });
+      if (err) setError(mapAuthError(err.message));
+    } catch (e) {
+      setError(mapAuthError((e as Error)?.message));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -35,13 +45,20 @@ export default function SignIn() {
         <Text style={{ fontFamily: F.display, fontSize: 38, color: COLORS.ink1, marginTop: 28 }}>Welcome back.</Text>
 
         <View style={{ marginTop: 32, gap: 14 }}>
-          <Field testID="email-input" label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-          <Field testID="password-input" label="Password" value={password} onChangeText={setPassword} secureTextEntry />
+          <AuthField
+            testID="email-input" label="Email" editable={!busy} value={email} onChangeText={setEmail}
+            {...EMAIL_INPUT} onSubmitEditing={() => passwordRef.current?.focus()} submitBehavior="submit"
+          />
+          <AuthField
+            ref={passwordRef} testID="password-input" label="Password" editable={!busy} value={password}
+            onChangeText={setPassword} secureTextEntry autoComplete="current-password" textContentType="password"
+            returnKeyType="go" onSubmitEditing={onSubmit}
+          />
         </View>
 
         {error && <Text style={errStyle}>{error}</Text>}
 
-        <TouchableOpacity testID="sign-in-button" onPress={onSubmit} disabled={busy || !email || !password} style={[btn, { marginTop: 24, opacity: busy || !email || !password ? 0.5 : 1 }]}>
+        <TouchableOpacity testID="sign-in-button" onPress={onSubmit} disabled={!canSubmit} style={[btn, { marginTop: 24, opacity: canSubmit ? 1 : 0.5 }]}>
           <Text style={btnText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
         </TouchableOpacity>
 
@@ -52,27 +69,6 @@ export default function SignIn() {
         </Link>
       </View>
     </KeyboardAvoidingView>
-  );
-}
-
-function Field(props: React.ComponentProps<typeof TextInput> & { label: string }) {
-  const { label, ...input } = props;
-  return (
-    <View>
-      <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 1.5, color: COLORS.ink3, textTransform: 'uppercase' }}>{label}</Text>
-      <TextInput
-        {...input}
-        placeholderTextColor={COLORS.ink4}
-        style={{
-          marginTop: 6,
-          paddingVertical: 12,
-          borderBottomWidth: 1,
-          borderBottomColor: COLORS.ink6,
-          fontSize: 16,
-          color: COLORS.ink1,
-        }}
-      />
-    </View>
   );
 }
 

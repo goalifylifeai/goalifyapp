@@ -53,8 +53,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Keyed on the id, not the user object: that changes on every token refresh.
+  const userId = user?.id ?? null;
+
   const fetchState = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setState(null);
       return;
     }
@@ -63,16 +66,18 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     const { data, error: err } = await supabase
       .from('onboarding_state')
       .select(COLUMNS)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
     if (err) setError(err.message);
     else setState(data as OnboardingState);
     setLoading(false);
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
+    // Don't route a newly signed-in account on the previous one's progress.
+    setState(prev => (prev && prev.user_id !== userId ? null : prev));
     fetchState();
-  }, [fetchState]);
+  }, [fetchState, userId]);
 
   const advance: OnboardingContextValue['advance'] = useCallback(
     async (stepKey, value) => {

@@ -97,3 +97,27 @@ describe('decideRoute (AuthGate)', () => {
     ).toBe('/(tabs)');
   });
 });
+
+describe('decideRoute during password recovery', () => {
+  const base = {
+    status: 'signed-in' as const,
+    onboardingLoaded: true,
+    onboardingCompleted: true,
+    currentStep: 'complete' as const,
+    recovering: true,
+  };
+
+  it('keeps an onboarded user on reset-password instead of sending them into the app', () => {
+    expect(decideRoute({ ...base, currentGroup: '(auth)', currentScreen: 'reset-password' })).toBeNull();
+  });
+
+  it('sends the user to reset-password from anywhere else', () => {
+    expect(decideRoute({ ...base, currentGroup: '(auth)', currentScreen: 'confirm' })).toBe('/(auth)/reset-password');
+    expect(decideRoute({ ...base, currentGroup: '(tabs)', currentScreen: 'index' })).toBe('/(auth)/reset-password');
+  });
+
+  it('routes normally once recovery is finished', () => {
+    expect(decideRoute({ ...base, recovering: false, currentGroup: '(auth)', currentScreen: 'reset-password' }))
+      .toBe('/(tabs)');
+  });
+});

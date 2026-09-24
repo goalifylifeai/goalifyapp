@@ -12,6 +12,10 @@ export type GateInput = {
   onboardingLoaded: boolean;
   onboardingCompleted: boolean;
   currentStep: OnboardingStep | null;
+  /** Signed in from a password-reset link and hasn't set a new password yet. */
+  recovering?: boolean;
+  /** Screen inside the current group, e.g. 'reset-password'. */
+  currentScreen?: string;
 };
 
 const STEP_ROUTE: Record<Exclude<OnboardingStep, 'complete'>, string> = {
@@ -30,6 +34,11 @@ export function decideRoute(input: GateInput): string | null {
   }
 
   // signed-in
+  if (input.recovering) {
+    const onReset = input.currentGroup === '(auth)' && input.currentScreen === 'reset-password';
+    return onReset ? null : '/(auth)/reset-password';
+  }
+
   if (!input.onboardingLoaded) return null;
 
   if (!input.onboardingCompleted) {

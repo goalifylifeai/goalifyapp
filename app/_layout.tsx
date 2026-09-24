@@ -10,10 +10,11 @@ import {
 } from '@expo-google-fonts/jetbrains-mono';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { Analytics } from '@vercel/analytics/react';
 import * as Notifications from 'expo-notifications';
 import { COLORS } from '../constants/theme';
+import { F } from '../components/ui';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StoreProvider } from '../store';
@@ -72,8 +73,10 @@ function HabitReminderScheduler() {
 }
 
 function AuthGate({ children }: { children: ReactNode }) {
-  const { status } = useAuth();
-  const { state: onboarding, loading: onboardingLoading } = useOnboarding();
+  const { status, recovering, signOut } = useAuth();
+  const {
+    state: onboarding, loading: onboardingLoading, error: onboardingError, refresh: refreshOnboarding,
+  } = useOnboarding();
   const segments = useSegments();
   const router = useRouter();
   const consent = useAnalyticsConsent();
@@ -86,6 +89,8 @@ function AuthGate({ children }: { children: ReactNode }) {
       onboardingLoaded: !!onboarding || !onboardingLoading,
       onboardingCompleted: !!onboarding?.completed_at,
       currentStep: onboarding?.current_step ?? null,
+      recovering,
+      currentScreen: (segments as string[])[1],
     });
     if (target) {
       router.replace(target as any);
@@ -100,7 +105,7 @@ function AuthGate({ children }: { children: ReactNode }) {
       consentAsked.current = true;
       router.push('/analytics-consent' as any);
     }
-  }, [status, onboarding, onboardingLoading, segments, router, consent]);
+  }, [status, recovering, onboarding, onboardingLoading, segments, router, consent]);
 
   if (status === 'loading') {
     return (
@@ -109,7 +114,35 @@ function AuthGate({ children }: { children: ReactNode }) {
       </View>
     );
   }
+  // Signed in but we couldn't load where they are in onboarding: without
+  // this, no route is decided and the user sits on the sign-in screen.
+  if (status === 'signed-in' && !recovering && !onboarding && onboardingError && !onboardingLoading) {
+    return <OnboardingLoadError onRetry={refreshOnboarding} onSignOut={signOut} />;
+  }
   return <>{children}</>;
+}
+
+function OnboardingLoadError({ onRetry, onSignOut }: { onRetry: () => void; onSignOut: () => void }) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: COLORS.paper }}>
+      <Text style={{ fontFamily: F.display, fontSize: 30, color: COLORS.ink1, textAlign: 'center' }}>
+        Couldn&apos;t load your account.
+      </Text>
+      <Text style={{ fontFamily: F.mono, fontSize: 12, color: COLORS.ink3, marginTop: 12, textAlign: 'center', lineHeight: 18 }}>
+        Check your connection and try again.
+      </Text>
+      <TouchableOpacity
+        testID="onboarding-retry"
+        onPress={onRetry}
+        style={{ marginTop: 24, paddingVertical: 14, paddingHorizontal: 28, borderRadius: 14, backgroundColor: COLORS.ink1 }}
+      >
+        <Text style={{ fontFamily: F.mono, fontSize: 13, letterSpacing: 1, color: COLORS.paper }}>Try again</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onSignOut} style={{ marginTop: 16 }}>
+        <Text style={{ fontFamily: F.mono, fontSize: 12, color: COLORS.ink3 }}>Sign out</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export default function RootLayout() {

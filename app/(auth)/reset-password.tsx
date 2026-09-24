@@ -1,60 +1,69 @@
-import { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
-import * as Linking from 'expo-linking';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { F } from '../../components/ui';
+import { AuthField, EMAIL_INPUT } from '../../components/AuthField';
+import { mapAuthError } from '../../lib/auth-errors';
 import { useAuth } from '../../store/auth';
-import { supabase } from '../../lib/supabase';
 
-// Two modes: request (default) and apply (deep-linked from email).
-// We detect "apply" mode when arriving via deep link with a recovery token.
+// Two modes: request (default) and apply. The auth store signs the user in
+// from the emailed reset link and flags `recovering`; AuthGate keeps them on
+// this screen until they've set a new password.
 export default function ResetPassword() {
   const insets = useSafeAreaInsets();
-  const { requestPasswordReset, updatePassword } = useAuth();
-  const [mode, setMode] = useState<'request' | 'apply'>('request');
+  const { requestPasswordReset, updatePassword, recovering, finishRecovery, linkError, signOut } = useAuth();
+  const mode: 'request' | 'apply' = recovering ? 'apply' : 'request';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  useEffect(() => {
-    // If the deep link contained a recovery token, supabase-js parses it from the URL fragment
-    // when we hand it to setSession; here we just listen for PASSWORD_RECOVERY events.
-    const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setMode('apply');
-    });
-    Linking.getInitialURL().then((url) => {
-      if (url && url.includes('reset-password')) setMode('apply');
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
+  const canSubmit = !busy && (mode === 'request' ? !!email.trim() : password.length >= 8);
 
   const onRequest = async () => {
+    if (!canSubmit) return;
     setBusy(true); setError(null); setInfo(null);
-    const { error: err } = await requestPasswordReset(email.trim());
-    if (err) setError(err.message);
-    else setInfo('If that email exists, a reset link is on its way.');
-    setBusy(false);
+    try {
+      const { error: err } = await requestPasswordReset(email.trim());
+      if (err) setError(mapAuthError(err.message));
+      else setInfo('If that email exists, a reset link is on its way.');
+    } catch (e) {
+      setError(mapAuthError((e as Error)?.message));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onApply = async () => {
+    if (!canSubmit) return;
     setBusy(true); setError(null);
-    const { error: err } = await updatePassword(password);
-    if (err) setError(err.message);
-    else {
+    try {
+      const { error: err } = await updatePassword(password);
+      if (err) {
+        setError(err.message);
+        setBusy(false);
+        return;
+      }
       setInfo('Password updated.');
-      setTimeout(() => router.replace('/(auth)/sign-in'), 800);
+      // Still busy: AuthGate takes the now signed-in user into the app.
+      setTimeout(finishRecovery, 800);
+    } catch (e) {
+      setError(mapAuthError((e as Error)?.message));
+      setBusy(false);
     }
-    setBusy(false);
   };
+
+  // Leaving a half-done reset signs out, so the reset link's session can't
+  // be used to walk into the app without a new password.
+  const onBack = () => (recovering ? signOut() : router.back());
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
       <View style={{ flex: 1, paddingTop: insets.top + 24, paddingHorizontal: 28, backgroundColor: COLORS.paper }}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={onBack}>
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: COLORS.ink3, letterSpacing: 1.5 }}>← Back</Text>
         </TouchableOpacity>
 
@@ -64,21 +73,34 @@ export default function ResetPassword() {
 
         <View style={{ marginTop: 32 }}>
           {mode === 'request' ? (
-            <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+            <AuthField
+              label="Email" editable={!busy} value={email} onChangeText={setEmail}
+              {...EMAIL_INPUT} returnKeyType="send" onSubmitEditing={onRequest}
+            />
           ) : (
-            <Field label="New password" value={password} onChangeText={setPassword} secureTextEntry />
+            <AuthField
+              label="New password" editable={!busy} value={password} onChangeText={setPassword}
+              secureTextEntry autoComplete="new-password" textContentType="newPassword"
+              returnKeyType="done" onSubmitEditing={onApply}
+            />
           )}
         </View>
+
+        {mode === 'request' && linkError && (
+          <Text style={{ fontFamily: F.mono, fontSize: 11, color: '#A33', marginTop: 16 }}>
+            {linkError} Request a new one below.
+          </Text>
+        )}
 
         {error && <Text style={{ fontFamily: F.mono, fontSize: 11, color: '#A33', marginTop: 16 }}>{error}</Text>}
         {info && <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink2, marginTop: 16 }}>{info}</Text>}
 
         <TouchableOpacity
           onPress={mode === 'request' ? onRequest : onApply}
-          disabled={busy || (mode === 'request' ? !email : password.length < 8)}
+          disabled={!canSubmit}
           style={{
             marginTop: 24, paddingVertical: 16, borderRadius: 14, backgroundColor: COLORS.ink1, alignItems: 'center',
-            opacity: busy ? 0.5 : 1,
+            opacity: canSubmit ? 1 : 0.5,
           }}
         >
           <Text style={{ fontFamily: F.mono, fontSize: 13, letterSpacing: 1, color: COLORS.paper }}>
@@ -87,19 +109,5 @@ export default function ResetPassword() {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
-  );
-}
-
-function Field(props: React.ComponentProps<typeof TextInput> & { label: string }) {
-  const { label, ...input } = props;
-  return (
-    <View>
-      <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 1.5, color: COLORS.ink3, textTransform: 'uppercase' }}>{label}</Text>
-      <TextInput
-        {...input}
-        placeholderTextColor={COLORS.ink4}
-        style={{ marginTop: 6, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.ink6, fontSize: 16, color: COLORS.ink1 }}
-      />
-    </View>
   );
 }

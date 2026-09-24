@@ -4,35 +4,32 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { F } from '../../components/ui';
-import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../store/auth';
 
 // Landing screen for the signup-confirmation link (goalify://confirm and
-// https://www.goalify.life/confirm). Supabase verifies the token itself and
-// redirects here with a session already established — we just need to greet
-// the user. AuthGate (app/_layout.tsx) takes over navigation once `status`
-// flips to signed-in, same as it does for every other signed-in route.
+// https://www.goalify.life/confirm). Supabase verifies the token and
+// redirects here with the session in the URL; the auth store turns that into
+// a session (lib/auth-link). AuthGate (app/_layout.tsx) takes over navigation
+// once `status` flips to signed-in, same as for every other signed-in route.
 const CONFIRM_TIMEOUT_MS = 6000;
 
 export default function Confirm() {
   const insets = useSafeAreaInsets();
+  const { status, linkError } = useAuth();
   const [timedOut, setTimedOut] = useState(false);
 
+  // No session yet: give the link a moment to land before calling it broken.
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) setTimedOut(false);
-    });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        const timer = setTimeout(() => setTimedOut(true), CONFIRM_TIMEOUT_MS);
-        return () => clearTimeout(timer);
-      }
-    });
-    return () => data.subscription.unsubscribe();
-  }, []);
+    if (status === 'signed-in') return;
+    const timer = setTimeout(() => setTimedOut(true), CONFIRM_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
+
+  const failed = status !== 'signed-in' && (!!linkError || timedOut);
 
   return (
     <View style={{ flex: 1, paddingTop: insets.top + 24, paddingHorizontal: 28, backgroundColor: COLORS.paper, alignItems: 'center', justifyContent: 'center' }}>
-      {timedOut ? (
+      {failed ? (
         <>
           <Text style={{ fontFamily: F.display, fontSize: 30, color: COLORS.ink1, textAlign: 'center' }}>
             That link didn&apos;t work.
