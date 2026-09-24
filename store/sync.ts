@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useReducer, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { bootstrapUserData } from '../lib/bootstrap';
 import { enqueue, drainQueue, type QueueItem } from '../lib/offline-queue';
 import { localDateISO } from '../lib/date';
@@ -368,7 +369,18 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
 
     loadCache();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // supabase-js runs auth callbacks inside its auth lock, and every query
+    // below needs that lock too — awaiting them in the callback deadlocks
+    // signInWithPassword. Keep the callback sync and run the work after the
+    // lock is released, one event at a time so SIGNED_IN/OUT can't interleave.
+    let chain = Promise.resolve();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setTimeout(() => {
+        chain = chain.then(() => handleAuthEvent(event, session)).catch(() => {});
+      }, 0);
+    });
+
+    const handleAuthEvent = async (event: AuthChangeEvent, session: Session | null) => {
       if (cancelled) return;
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         const userId = session.user.id;
@@ -397,7 +409,7 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
         await AsyncStorage.removeItem(CACHE_KEY).catch(() => {});
         if (!cancelled) rawDispatch({ type: 'HYDRATE', state: SIGNED_OUT_STATE });
       }
-    });
+    };
 
     return () => {
       cancelled = true;

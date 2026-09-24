@@ -105,6 +105,8 @@ describe('usePersistentStore — additional characterization', () => {
       for (const cb of mockAuthCallbacks) {
         await cb('SIGNED_IN', { user: { id: userId } });
       }
+      // The store defers auth work past supabase's auth lock; let it run.
+      await new Promise(r => setTimeout(r, 10));
     });
   }
 
@@ -614,6 +616,8 @@ describe('usePersistentStore — additional characterization', () => {
       for (const cb of mockAuthCallbacks) {
         await cb('SIGNED_OUT', null);
       }
+      // The store defers auth work past supabase's auth lock; let it run.
+      await new Promise(r => setTimeout(r, 10));
     });
 
     supabase.from.mockClear();

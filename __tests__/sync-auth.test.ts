@@ -54,6 +54,8 @@ const goal = (id: string, title = 'Run a 10k'): Goal => ({
 async function fireAuth(event: string, session: unknown) {
   await act(async () => {
     for (const cb of mockAuthCallbacks) await cb(event, session);
+    // The store defers auth work past supabase's auth lock; let it run.
+    await new Promise(r => setTimeout(r, 10));
   });
 }
 
@@ -81,6 +83,19 @@ describe('usePersistentStore auth lifecycle', () => {
       delete: jest.fn(() => ({ eq: jest.fn().mockResolvedValue({ error: null }) })),
       select: jest.fn(() => ({ order })),
     });
+  });
+
+  it('returns from the auth callback without awaiting supabase work', async () => {
+    // supabase-js runs this callback inside its auth lock; awaiting queries
+    // in it deadlocks signInWithPassword ("Signing in…" forever).
+    const { queueMock } = getMocks();
+    renderHook(() => usePersistentStore());
+    let ret: unknown;
+    act(() => { ret = mockAuthCallbacks[0]('SIGNED_IN', { user: { id: 'user-1' } }); });
+    expect(ret).toBeUndefined();
+    expect(queueMock.drainQueue).not.toHaveBeenCalled();
+    await flush();
+    expect(queueMock.drainQueue).toHaveBeenCalled();
   });
 
   it('syncs a goal added before the session is known once the session arrives', async () => {
