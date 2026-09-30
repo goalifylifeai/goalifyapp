@@ -50,3 +50,71 @@ export function streakFromDates(
   }
   return streak;
 }
+
+// ── Daily ritual streak with rest days ──────────────────────────────
+//
+// Spec: specs/010-gamification-foundation (FR-011 – FR-013).
+//
+// Every 7 consecutive active days earns one rest day (hold at most
+// REST_DAYS_MAX). A single missed day consumes a held rest day
+// automatically: the streak survives but the rest day doesn't add to the
+// count. A miss with no rest day held resets the streak. Today being
+// not-yet-active never consumes anything — the streak is measured through
+// yesterday until today is done.
+//
+// Rest days are *derived* from the date history (a forward pass), never
+// stored, so there is no state to sync and devices can't disagree.
+//
+// MUST stay in lockstep with public.compute_streak_state() in
+// supabase/migrations/0025_streak_rest_days.sql. Both are tested against
+// __tests__/fixtures/streak-cases.json.
+
+/** Active days needed to earn one rest day. */
+export const REST_DAY_EVERY = 7;
+/** Maximum rest days a user can hold at once. */
+export const REST_DAYS_MAX = 1;
+/** How far back the streak looks. The SQL mirror uses the same window. */
+export const STREAK_HISTORY_DAYS = 400;
+
+export type StreakState = {
+  /** Active days in the current run (rest days don't add to it). */
+  streak: number;
+  /** Rest days currently held (0..REST_DAYS_MAX). */
+  restDaysHeld: number;
+  /** Local dates inside the history window that were covered by a rest day. */
+  restDates: string[];
+};
+
+export function streakState(
+  dates: Iterable<string>,
+  today: string = localDateISO(),
+): StreakState {
+  const set = dates instanceof Set ? dates : new Set(dates);
+  let streak = 0;
+  let held = 0;
+  const restDates: string[] = [];
+
+  const step = (day: string) => {
+    streak++;
+    if (streak % REST_DAY_EVERY === 0) held = Math.min(REST_DAYS_MAX, held + 1);
+  };
+
+  // Forward pass over the window, up to and including yesterday.
+  let cursor = addDaysISO(today, -STREAK_HISTORY_DAYS);
+  while (cursor < today) {
+    if (set.has(cursor)) {
+      step(cursor);
+    } else if (streak > 0 && held > 0) {
+      held--;
+      restDates.push(cursor);
+    } else {
+      streak = 0;
+      held = 0;
+    }
+    cursor = addDaysISO(cursor, 1);
+  }
+  // Today only ever adds; it never breaks or consumes.
+  if (set.has(today)) step(today);
+
+  return { streak, restDaysHeld: held, restDates };
+}

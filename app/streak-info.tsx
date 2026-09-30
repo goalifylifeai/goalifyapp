@@ -10,8 +10,9 @@ const DAYS_SHOWN = 28;
 
 export default function StreakInfoScreen() {
   const insets = useSafeAreaInsets();
-  const { streak, activeDates } = useDailyRitual();
+  const { streak, activeDates, restDaysHeld, restDates } = useDailyRitual();
   const activeSet = new Set(activeDates);
+  const restSet = new Set(restDates);
 
   const onShare = () => {
     Share.share({
@@ -29,6 +30,7 @@ export default function StreakInfoScreen() {
       label: d.toLocaleDateString('en', { weekday: 'narrow' }),
       date: d.getDate(),
       done: activeSet.has(localDateISO(d)),
+      rest: restSet.has(localDateISO(d)),
     };
   });
 
@@ -50,13 +52,16 @@ export default function StreakInfoScreen() {
           Keep showing{'\n'}up.
         </Text>
         <Text style={{ fontFamily: F.mono, fontSize: 13, color: COLORS.ink2, lineHeight: 22, letterSpacing: 0.1, marginBottom: 36 }}>
-          Your streak grows each day you complete at least one action or ritual. Miss a day and it resets.
+          Your streak grows each day you finish your must-do or close your evening ritual. Every 7 days in a row earns a rest day: miss one day and it keeps your streak alive.
         </Text>
 
         {/* Big number */}
         <View style={{ alignItems: 'center', marginBottom: 36 }}>
           <Text style={{ fontFamily: F.display, fontSize: 96, color: COLORS.ink1, lineHeight: 100, letterSpacing: -2 }}>{streak}</Text>
           <Text style={{ fontFamily: F.mono, fontSize: 14, color: COLORS.ink3, letterSpacing: 1 }}>days in a row</Text>
+          <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3, letterSpacing: 0.5, marginTop: 8 }}>
+            {restDaysHeld > 0 ? '1 rest day saved' : 'No rest day saved yet'}
+          </Text>
           <TouchableOpacity
             onPress={onShare}
             style={{ marginTop: 18, backgroundColor: COLORS.ink1, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 99 }}
@@ -75,6 +80,9 @@ export default function StreakInfoScreen() {
               <View style={{
                 width: '100%', aspectRatio: 1, borderRadius: 6,
                 backgroundColor: d.done ? COLORS.ink1 : COLORS.ink7,
+                borderWidth: d.rest ? 1.5 : 0,
+                borderColor: COLORS.ink3,
+                borderStyle: 'dashed',
               }} />
               <Text style={{ fontFamily: F.mono, fontSize: 8, color: COLORS.ink4 }}>{d.date}</Text>
             </View>
@@ -87,13 +95,13 @@ export default function StreakInfoScreen() {
             What counts
           </Text>
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: COLORS.ink2, lineHeight: 20, marginBottom: 8 }}>
-            · Checking off a Today action
+            · Finishing today's must-do
           </Text>
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: COLORS.ink2, lineHeight: 20, marginBottom: 8 }}>
-            · Completing your morning ritual
+            · Closing your evening ritual
           </Text>
-          <Text style={{ fontFamily: F.mono, fontSize: 12, color: COLORS.ink2, lineHeight: 20 }}>
-            · Completing your evening ritual
+          <Text style={{ fontFamily: F.mono, fontSize: 12, color: COLORS.ink3, lineHeight: 20 }}>
+            A dashed square is a day your rest day covered.
           </Text>
         </View>
       </View>

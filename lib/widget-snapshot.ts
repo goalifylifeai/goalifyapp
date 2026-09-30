@@ -8,7 +8,7 @@
 
 import type { SphereId } from '../constants/theme';
 import type { DailyIntention } from '../store/daily-ritual';
-import { localDateISO, streakFromDates } from './date';
+import { localDateISO, streakState } from './date';
 
 export type WidgetSnapshot = {
   /** Local YYYY-MM-DD this snapshot describes. */
@@ -17,7 +17,7 @@ export type WidgetSnapshot = {
   oneText: string | null;
   /** Whether the One is checked off. */
   oneDone: boolean;
-  /** Consecutive "active" days ending today (today counts once it's active). */
+  /** Daily ritual streak incl. rest days (lib/date streakState; today counts once it's active). */
   streak: number;
   /** Today's focus sphere, for the tile's accent color. */
   focusSphere: SphereId | null;
@@ -50,7 +50,7 @@ export function buildWidgetSnapshot(args: {
     date: today,
     oneText: mustDo?.text ?? null,
     oneDone: mustDo?.done ?? false,
-    streak: streakFromDates(args.activeDates, today),
+    streak: streakState(args.activeDates, today).streak,
     focusSphere: args.intention?.focus_sphere ?? null,
     updatedAt: new Date().toISOString(),
   };
