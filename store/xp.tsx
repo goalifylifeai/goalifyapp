@@ -163,7 +163,10 @@ export function useXp(): XpContextValue {
 
 /** The one level everyone shows: Today, Profile, Level info. */
 export function useLevel() {
-  const { total } = useXp();
+  const { total, ready } = useXp();
   const { state } = useStore();
-  return levelFromXp(EARNED_XP ? total : legacyXpForGoals(state.goals));
+  // Until a server (or cached) total is known — e.g. the app shipped before
+  // migrations 0026–0028 were applied — show the old level rather than
+  // flashing everyone down to Level 1.
+  return levelFromXp(EARNED_XP && ready ? total : legacyXpForGoals(state.goals));
 }
