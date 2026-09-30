@@ -27,6 +27,7 @@ import { DailyRitualProvider, useDailyRitual } from '../store/daily-ritual';
 import { VisionAssetsProvider } from '../store/vision';
 import { CoachAiProvider } from '../store/coach-ai';
 import { CirclesProvider } from '../store/circles';
+import { XpProvider } from '../store/xp';
 import { TrialWatcher } from '../components/TrialWatcher';
 import { AnalyticsBridge } from '../components/analytics/AnalyticsBridge';
 import { track, useAnalyticsConsent } from '../lib/analytics';
@@ -168,6 +169,7 @@ export default function RootLayout() {
             <OnboardingProvider>
               <FutureSelfProvider>
               <StoreProvider>
+              <XpProvider>
               <DailyRitualProvider>
               <VisionAssetsProvider>
               <CoachAiProvider>
@@ -203,6 +205,7 @@ export default function RootLayout() {
               </CoachAiProvider>
               </VisionAssetsProvider>
               </DailyRitualProvider>
+              </XpProvider>
               </StoreProvider>
               </FutureSelfProvider>
             </OnboardingProvider>

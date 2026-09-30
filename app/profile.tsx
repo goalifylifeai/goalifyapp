@@ -7,7 +7,7 @@ import DateTimePicker from '../components/DateTimePicker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { COLORS } from '../constants/theme';
-import { levelForGoals } from '../constants/data';
+import { useLevel } from '../store/xp';
 import { Card, SectionLabel, Bar, F } from '../components/ui';
 import { PlanSection } from '../components/PlanSection';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,7 +33,7 @@ export default function ProfileScreen() {
   const { state, dispatch } = useStore();
 
   const { streak } = useDailyRitual();
-  const lvl = levelForGoals(state.goals);
+  const lvl = useLevel();
   const goalsDone = completedGoals(state.goals).length;
   const [name, setName] = useState(profile?.display_name ?? '');
   const [pronoun, setPronoun] = useState(profile?.pronouns ?? '');

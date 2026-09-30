@@ -7,12 +7,14 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
 import { useAuth } from './auth';
 import { localDateISO, addDaysISO, streakState, STREAK_HISTORY_DAYS } from '../lib/date';
 import { buildWidgetSnapshot, activeDatesFromIntentions } from '../lib/widget-snapshot';
 import { writeWidgetSnapshot } from '../lib/widget-bridge';
+import { requestXpRefresh } from '../lib/xp';
 import type { SphereId } from '../constants/theme';
 
 export type RitualActionSource = 'goal_subtask' | 'habit' | 'free';
@@ -128,6 +130,19 @@ export function DailyRitualProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { writeWidgetSnapshot(snapshot); }, [snapshot]);
 
+  // Analytics: a rest day just covered yesterday (spec 010, FR-016). Once per
+  // date per device; AsyncStorage survives restarts so it isn't re-sent.
+  useEffect(() => {
+    const yesterday = yesterdayDate();
+    if (!user || !restDates.includes(yesterday)) return;
+    const key = `@goalify/rest_day_tracked:${user.id}`;
+    AsyncStorage.getItem(key).then(last => {
+      if (last === yesterday) return;
+      track('rest_day_used', { streak });
+      AsyncStorage.setItem(key, yesterday).catch(() => {});
+    }).catch(() => {});
+  }, [user, restDates, streak]);
+
   const lockMorning = useCallback(async (sphere: SphereId, actions: RitualAction[]) => {
     if (!user) return { error: 'Not signed in' };
     const today = todayDate();
@@ -144,6 +159,7 @@ export function DailyRitualProvider({ children }: { children: ReactNode }) {
 
     if (err) return { error: err.message };
     setIntention(data as DailyIntention);
+    requestXpRefresh();
     track('ritual_morning_completed', { sphere, actions_count: actions.length, must_do: actions.some(a => a.is_must_do) });
     return { error: null };
   }, [user]);
@@ -161,6 +177,7 @@ export function DailyRitualProvider({ children }: { children: ReactNode }) {
       .from('daily_intentions')
       .update({ actions: updated, must_do_done: mustDoDone })
       .eq('id', intention.id);
+    requestXpRefresh();
   }, [intention]);
 
   const closeEvening = useCallback(async (journalLine: string, nextSphere: SphereId) => {
@@ -177,6 +194,7 @@ export function DailyRitualProvider({ children }: { children: ReactNode }) {
 
     if (err) return { error: err.message };
     setIntention(data as DailyIntention);
+    requestXpRefresh();
     track('ritual_evening_completed', {
       wrote_line: !!journalLine.trim(),
       next_sphere: nextSphere,

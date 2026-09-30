@@ -8,6 +8,7 @@ import { enqueue, drainQueue, type QueueItem } from '../lib/offline-queue';
 import { localDateISO } from '../lib/date';
 import { trackAll } from '../lib/analytics';
 import { eventsForAction } from '../lib/analytics-events';
+import { emitLocalXp, xpDeltaForStore } from '../lib/xp';
 import { appReducer, initialState, type AppAction, type AppState } from './reducer';
 
 const CACHE_KEY = '@goalify/cache';
@@ -454,6 +455,8 @@ export function usePersistentStore(): { state: AppState; dispatch: React.Dispatc
       // Tracked here, once per dispatch, before the session check: buffered
       // writes are tracked now and not again when flushPending syncs them.
       trackAll(eventsForAction(action, currentState, nextState));
+      // Optimistic XP for this change; the server ledger confirms it (spec 010).
+      emitLocalXp(xpDeltaForStore(currentState, nextState));
 
       const userId = userIdRef.current;
       if (!userId) {

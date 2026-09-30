@@ -2,7 +2,7 @@
 
 **Feature Branch**: `010-gamification-foundation`
 **Created**: 2026-09-29
-**Status**: Draft
+**Status**: Implemented on branch `010-gamification-foundation` (Stories 1–4). Story 5 not started (D1 decided: keep ritual-only).
 **Scope**: Step 0 (XP ledger) and Step 1 (streaks) of the gamification roadmap. Level-up moments, achievements, Circles v2 and AI quests are follow-up specs that build on this one.
 
 ## Why this exists
@@ -166,9 +166,9 @@ The Today streak and the Habits overall streak become one "showing up" streak. P
 
 **FR-015** After the migration, `backfill_circle_daily_status()` is run so friends' stored streak numbers use the new rule immediately.
 
-**FR-016** Analytics (PostHog, only with consent, per `docs/analytics.md`): `xp_earned {kind, xp, capped}`, `level_reached {level}`, `rest_day_used {streak}`, `streak_reset {length}`, `streak_milestone {n}`.
+**FR-016** Analytics (PostHog, only with consent, per `docs/analytics.md`): `level_reached {level}` and `rest_day_used {streak}` from the app. XP awards, caps and streak milestones are queried from `xp_events` directly rather than duplicated as PostHog events. *(Changed during build.)*
 
-**FR-017** Everything user-visible ships behind a flag in `constants/flags.ts` (`EARNED_XP`, `REST_DAYS`). The server ledger runs regardless, so it's warm when the flag flips.
+**FR-017** The earned level ships behind `EARNED_XP` in `constants/flags.ts` (fallback: the old formula). The server ledger runs regardless. **Rest days have no flag**: the rule lives in SQL too (Circles), and a client-only flag would make the app and friends' view disagree. *(Changed during build.)*
 
 ---
 
@@ -291,9 +291,9 @@ Monte-Carlo, 300 runs × 2 years per persona, using the XP table above. Script: 
 
 ## Decisions needed
 
-- **D1: What counts as an active day for the one unified streak (Story 5)?** Options: (a) keep ritual-only; (b) ritual OR ≥1 habit OR journal entry. Option (b) is friendlier but requires Circles triggers on `habit_logs` and `journal_entries`. Recommendation: (a) now, revisit (b) with data.
-- **D2: Should un-checking an old subtask remove its XP?** The spec says yes (a correction). The alternative, "only same-day un-check removes XP", is kinder but farmable across days.
-- **D3: Should the XP total be read via the view (always correct) or a counter column updated by trigger (faster)?** Start with the view. Revisit if `xp_events` gets past about 50k rows per user (it won't soon).
+- **D1 (decided: a) What counts as an active day for the one unified streak (Story 5)?** Options: (a) keep ritual-only; (b) ritual OR ≥1 habit OR journal entry. Option (b) is friendlier but requires Circles triggers on `habit_logs` and `journal_entries`. Recommendation: (a) now, revisit (b) with data.
+- **D2 (decided: yes) Should un-checking an old subtask remove its XP?** The spec says yes (a correction). The alternative, "only same-day un-check removes XP", is kinder but farmable across days.
+- **D3 (decided: view) Should the XP total be read via the view (always correct) or a counter column updated by trigger (faster)?** Start with the view. Revisit if `xp_events` gets past about 50k rows per user (it won't soon).
 
 ## Open questions (follow-up specs)
 

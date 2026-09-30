@@ -93,7 +93,10 @@ export function levelFromXp(xp: number) {
   return { lvl, next, pct: Math.min(into / span, 1), into, span };
 }
 
-// Single source of truth for the level shown on Today, Profile and Level info.
-export function levelForGoals(goals: Goal[]) {
-  return levelFromXp(computeOverallScore(computeSphereData(goals)) * 50);
+// The pre-spec-010 formula (XP = life score × 50). Kept only as the
+// EARNED_XP=false fallback and as the reference the carryover in
+// supabase/migrations/0028_xp_backfill.sql reproduces. The level everyone
+// sees comes from useLevel() in store/xp.tsx.
+export function legacyXpForGoals(goals: Goal[]): number {
+  return computeOverallScore(computeSphereData(goals)) * 50;
 }

@@ -51,6 +51,10 @@ export type EventMap = {
   ritual_morning_completed: { sphere: SphereId; actions_count: number; must_do: boolean };
   ritual_evening_completed: { wrote_line: boolean; next_sphere: SphereId; actions_done: number; actions_total: number };
 
+  // Gamification (spec 010). XP awards themselves are in the xp_events table.
+  level_reached: { level: number };
+  rest_day_used: { streak: number };
+
   coach_message_sent: {};
   coach_reply_received: { outcome: 'ok' | 'limit' | 'error'; latency_ms: number };
   coach_limit_hit: { upgrade_offered: boolean };

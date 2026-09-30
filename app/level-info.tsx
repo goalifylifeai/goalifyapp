@@ -3,14 +3,13 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 import { F, Ring } from '../components/ui';
-import { LEVELS, levelForGoals } from '../constants/data';
-import { useStore } from '../store';
+import { LEVELS } from '../constants/data';
+import { XP } from '../lib/xp';
+import { useLevel } from '../store/xp';
 
 export default function LevelInfoScreen() {
   const insets = useSafeAreaInsets();
-  const { state } = useStore();
-
-  const lvl = levelForGoals(state.goals);
+  const lvl = useLevel();
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.ink1 }}>
@@ -33,7 +32,7 @@ export default function LevelInfoScreen() {
           Level {lvl.lvl.n}{'\n'}{lvl.lvl.name}.
         </Text>
         <Text style={{ fontFamily: F.mono, fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 22, letterSpacing: 0.1, marginBottom: 32 }}>
-          XP is earned by making progress on your goals. Every percentage point of goal progress translates into XP.
+          XP is earned by showing up: goals, rituals, habits and journaling all count. Your level never goes down.
         </Text>
 
         {/* Current progress ring */}
@@ -60,13 +59,25 @@ export default function LevelInfoScreen() {
             How XP works
           </Text>
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 20, marginBottom: 8 }}>
-            · Complete subtasks to grow your goal progress bars.
+            · Finish a subtask: +{XP.subtask_done} (up to 10 a day)
           </Text>
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 20, marginBottom: 8 }}>
-            · Your overall life score (0–100) powers your XP.
+            · Complete a goal: +{XP.goal_completed}
+          </Text>
+          <Text style={{ fontFamily: F.mono, fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 20, marginBottom: 8 }}>
+            · Morning ritual: +{XP.ritual_locked} · must-do: +{XP.must_do_done} · evening close: +{XP.ritual_closed}
+          </Text>
+          <Text style={{ fontFamily: F.mono, fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 20, marginBottom: 8 }}>
+            · Check off a habit: +{XP.habit_done} (up to 10 a day)
+          </Text>
+          <Text style={{ fontFamily: F.mono, fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 20, marginBottom: 8 }}>
+            · Journal entry: +{XP.journal_entry} (once a day)
+          </Text>
+          <Text style={{ fontFamily: F.mono, fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 20, marginBottom: 8 }}>
+            · First time you do each of these: +{XP.first_bonus}
           </Text>
           <Text style={{ fontFamily: F.mono, fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 20 }}>
-            · Each point of life score = 50 XP.
+            · Streak milestones at 7, 30, 100 and 365 days
           </Text>
         </View>
 

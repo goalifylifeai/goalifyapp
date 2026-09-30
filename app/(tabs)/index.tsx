@@ -3,13 +3,14 @@ import { ScrollView, View, Text, TouchableOpacity, TextInput, Animated } from 'r
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { COLORS, SPHERE_COLORS } from '../../constants/theme';
-import { SPHERE_LIST, levelForGoals, computeSphereData, computeOverallScore, affirmationFor } from '../../constants/data';
+import { SPHERE_LIST, computeSphereData, computeOverallScore, affirmationFor } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Ring, Bar, Check, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
 import { activeGoals } from '../../lib/goals';
 import { useFutureSelf } from '../../store/future-self';
 import { useDailyRitual } from '../../store/daily-ritual';
 import { useProfile } from '../../store/profile';
+import { useLevel } from '../../store/xp';
 import type { SphereId } from '../../constants/theme';
 import { newId } from '../../lib/id';
 import { localDateISO } from '../../lib/date';
@@ -65,7 +66,7 @@ export default function TodayScreen() {
   const sphereData = computeSphereData(state.goals);
   const overall = computeOverallScore(sphereData);
 
-  const lvl = levelForGoals(state.goals);
+  const lvl = useLevel();
   
   // Only compare spheres the user has actually started (has a goal in) —
   // an empty sphere isn't "holding you back", it just hasn't been touched yet.
