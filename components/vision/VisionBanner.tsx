@@ -71,6 +71,17 @@ export function VisionBanner({ goalId, goalTitle, sphere, caption, fallbackColor
           />
         ) : null}
 
+        {/* Photos can be dark anywhere; fade the bottom so the caption reads. */}
+        {signedUrl ? (
+          <LinearGradient
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.6)']}
+            start={{ x: 0, y: 0.35 }}
+            end={{ x: 0, y: 1 }}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        ) : null}
+
         {/* Shimmer overlay while generating */}
         {isLoadingImage && (
           <Animated.View
@@ -95,10 +106,10 @@ export function VisionBanner({ goalId, goalTitle, sphere, caption, fallbackColor
               disabled={plan !== 'free'}
               onPress={() => openPaywall('vision_limit', () => retryGeneration(goalId, goalTitle, sphere))}
             >
-              <Text style={s.limitText}>{imageLimitCaption(plan)}</Text>
+              <Text style={[s.limitText, signedUrl ? s.onImage : null]}>{imageLimitCaption(plan)}</Text>
             </TouchableOpacity>
           ) : (
-            <Text style={s.caption} numberOfLines={2}>{caption}</Text>
+            <Text style={[s.caption, signedUrl ? s.onImage : null]} numberOfLines={2}>{caption}</Text>
           )}
         </View>
       </View>
@@ -143,6 +154,13 @@ const s = StyleSheet.create({
     lineHeight: 17,
     color: 'rgba(20,15,10,0.92)',
     letterSpacing: -0.1,
+  },
+  // Over a photo (with the scrim): light text, soft shadow for bright spots.
+  onImage: {
+    color: 'rgba(255,255,255,0.95)',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   limitText: {
     fontFamily: F.mono,

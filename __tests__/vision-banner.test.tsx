@@ -76,3 +76,22 @@ describe('monthly image cap (U4)', () => {
     expect(requestGeneration).not.toHaveBeenCalled();
   });
 });
+
+describe('caption legibility', () => {
+  const colorOf = (el: { props: { style: unknown } }) =>
+    require('react-native').StyleSheet.flatten(el.props.style).color;
+
+  it('uses light text over a generated photo', () => {
+    (useVisionAssets as jest.Mock).mockReturnValue(vision({
+      getAsset: () => ({ status: 'ready' }), getSignedUrl: () => 'https://img/1.png',
+    }));
+    const { getByText } = render(<VisionBanner {...props} caption="A sunlit sill" />);
+    expect(colorOf(getByText('A sunlit sill'))).toBe('rgba(255,255,255,0.95)');
+  });
+
+  it('keeps dark text on the light placeholder gradient', () => {
+    (useVisionAssets as jest.Mock).mockReturnValue(vision());
+    const { getByText } = render(<VisionBanner {...props} caption="A sunlit sill" />);
+    expect(colorOf(getByText('A sunlit sill'))).toBe('rgba(20,15,10,0.92)');
+  });
+});
