@@ -17,6 +17,7 @@ import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 import { parseAuthLink, authRedirectUrl, type AuthLink } from '../lib/auth-link';
+import { initialWebAuthUrl } from '../lib/initial-web-auth-url';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -78,7 +79,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const onUrl = (url: string | null) => {
       const link = parseAuthLink(url);
       if (!link || cancelled) return;
-      clearAuthParamsFromWebUrl();
       // Set before the session lands, or AuthGate routes the freshly
       // signed-in user into the app before they've set a new password.
       if (link.kind !== 'error' && link.recovery) setRecovering(true);
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) setRecovering(false);
       });
     };
-    Linking.getInitialURL().then(onUrl).catch(() => {});
+    Linking.getInitialURL().then(url => onUrl(initialWebAuthUrl ?? url)).catch(() => {});
     const urlSub = Linking.addEventListener('url', ({ url }) => onUrl(url));
 
     return () => {
@@ -201,12 +201,6 @@ async function applyAuthLink(link: AuthLink): Promise<{ error: string | null }> 
         ? await supabase.auth.exchangeCodeForSession(link.code)
         : await supabase.auth.verifyOtp({ token_hash: link.tokenHash, type: link.type });
   return { error: error ? 'That link has expired or was already used.' : null };
-}
-
-// Tokens in the address bar would be reused on refresh and leak into history.
-function clearAuthParamsFromWebUrl() {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-  window.history.replaceState(null, '', window.location.pathname);
 }
 
 export function useAuth(): AuthContextValue {

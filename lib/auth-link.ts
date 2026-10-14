@@ -60,6 +60,17 @@ export function parseAuthLink(url: string | null | undefined): AuthLink | null {
   return null;
 }
 
+// Web only: reads an auth-email URL and strips it from the address bar, so
+// the tokens don't stay there or in browser history. Called once, from
+// lib/initial-web-auth-url.ts (see there for why it must run so early).
+export function takeInitialWebAuthUrl(): string | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.location) return null;
+  const href = window.location.href;
+  if (!parseAuthLink(href)) return null;
+  window.history.replaceState(null, '', window.location.pathname);
+  return href;
+}
+
 // Where auth emails send the user back to. Native apps get the app scheme;
 // web gets its own origin so the link opens where the request came from.
 // Both must be in Supabase's redirect allow-list, or it falls back to the
