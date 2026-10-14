@@ -17,7 +17,7 @@ export default function ScoreInfoScreen() {
   const insets = useSafeAreaInsets();
   const { state } = useStore();
 
-  const sphereData = computeSphereData(state.goals);
+  const sphereData = computeSphereData(state.goals, state.habits);
   const overall = computeOverallScore(sphereData);
 
   return (

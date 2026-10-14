@@ -64,14 +64,15 @@ export default function TodayScreen() {
   ];
 
   // Sphere calculations
-  const sphereData = computeSphereData(state.goals);
+  const sphereData = computeSphereData(state.goals, state.habits);
   const overall = computeOverallScore(sphereData);
 
   const lvl = useLevel();
   
   // Only compare spheres the user has actually started (has a goal in) —
   // an empty sphere isn't "holding you back", it just hasn't been touched yet.
-  const startedSpheres = SPHERE_LIST.filter(id => sphereData[id].count > 0)
+  // Spheres with a scored goal (goals with no plan yet don't rank a sphere).
+  const startedSpheres = SPHERE_LIST.filter(id => sphereData[id].scored > 0)
     .sort((a, b) => sphereData[b].progress - sphereData[a].progress);
   const top = startedSpheres[0];
   const low = startedSpheres[startedSpheres.length - 1];

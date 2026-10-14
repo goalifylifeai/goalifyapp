@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import type { DailyIntention } from '../store/daily-ritual';
 import { getNotificationTimes } from './notification-prefs';
 import { track } from './analytics';
+import { GOAL_REMINDER_PREFIX, type PlannedGoalReminder } from './goal-reminders';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -222,5 +223,39 @@ export async function ensureHabitRemindersScheduled(
     if (n.identifier.startsWith('habit-reminder-') && !wantedIds.has(n.identifier)) {
       await cancelNotification(n.identifier);
     }
+  }
+}
+
+// ── Goal-due reminders (spec 011) ───────────────────────────────────
+// Reconciles scheduled goal-due-* notifications with the plan from
+// lib/goal-reminders: schedules missing ones, replaces ones whose copy or time
+// changed, cancels the rest. Called whenever goals or habits change.
+export async function ensureGoalRemindersScheduled(plan: readonly PlannedGoalReminder[]) {
+  if (Platform.OS === 'web') return;
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') return;
+
+  const scheduled = (await Notifications.getAllScheduledNotificationsAsync())
+    .filter(n => n.identifier.startsWith(GOAL_REMINDER_PREFIX));
+  const byId = new Map(scheduled.map(n => [n.identifier, n]));
+  const wanted = new Set(plan.map(p => p.id));
+
+  for (const n of scheduled) {
+    if (!wanted.has(n.identifier)) await cancelNotification(n.identifier);
+  }
+
+  for (const p of plan) {
+    const existing = byId.get(p.id);
+    // Trigger shapes differ by platform, so the planned time rides in `data`.
+    const unchanged = existing
+      && existing.content.body === p.body
+      && existing.content.data?.fireAt === p.fireAt.getTime();
+    if (unchanged) continue;
+    if (existing) await cancelNotification(p.id);
+    await Notifications.scheduleNotificationAsync({
+      identifier: p.id,
+      content: { title: p.title, body: p.body, data: { ...p.data, fireAt: p.fireAt.getTime() } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: p.fireAt },
+    });
   }
 }

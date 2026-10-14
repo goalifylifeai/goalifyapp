@@ -109,7 +109,7 @@ No `is_first` flag: before the cache hydrates the store looks empty, so it would
 | Social | `circle_created` / `circle_joined` | `outcome: ok\|error` / `outcome: ok\|invalid_code\|already_member\|error` | `app/circles/index.tsx` |
 | | `circle_invite_shared` | – | `app/circles/[id].tsx` |
 | Notifications | `notification_permission_result` | `granted` | `lib/notifications.ts` |
-| | `notification_opened` | `kind: morning\|lunch\|evening\|sentiment\|streak_risk\|habit_reminder\|trial_ending\|other` | `app/_layout.tsx` NotificationListener |
+| | `notification_opened` | `kind: morning\|lunch\|evening\|sentiment\|streak_risk\|habit_reminder\|goal_due\|trial_ending\|other` | `app/_layout.tsx` NotificationListener |
 | Consent | `analytics_consent_changed` | `granted: true` (only sendable when granting) | consent screen / profile |
 | Server | `subscription_started` / `subscription_renewed` / `subscription_cancelled` / `subscription_uncancelled` / `subscription_expired` / `billing_issue` / `subscription_product_changed` | `period_type`, `store`, `product_id`, `is_trial_conversion`, `price_usd` | `supabase/functions/revenuecat-webhook` |
 

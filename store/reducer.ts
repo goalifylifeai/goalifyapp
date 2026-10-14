@@ -12,6 +12,7 @@ export type Subtask = { id: string; t: string; done: boolean };
 export type Goal = {
   id: string; sphere: SphereId; title: string; due: string; progress: number; sub: Subtask[];
   completedAt?: string; // ISO timestamp; unset while the goal is active
+  createdAt?: string;   // ISO timestamp; server created_at, or set locally on create
 };
 
 export type HabitItem = {
@@ -110,6 +111,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         goals: state.goals.filter(g => g.id !== action.goalId),
+        // Linked habits stay but stop counting toward a goal (mirrors the
+        // server's ON DELETE SET NULL on habits.goal_id).
+        habits: state.habits.map(h => (h.goalId === action.goalId ? { ...h, goalId: undefined } : h)),
       };
 
     case 'ADD_SUBTASK': {

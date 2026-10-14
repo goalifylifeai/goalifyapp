@@ -75,6 +75,7 @@ export type HabitRow = {
   calendar_event_id: string | null;
   reminder_hour: number | null;
   reminder_minute: number | null;
+  goal_id: string | null;
   created_at: string;
   updated_at: string;
 };

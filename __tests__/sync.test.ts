@@ -168,6 +168,41 @@ describe('usePersistentStore', () => {
     );
   });
 
+  it('writes the habit → goal link (goal_id) online and in the offline queue (spec 011)', async () => {
+    const { supabase, queueMock } = getMocks();
+    const upsert = jest.fn().mockRejectedValue(new Error('network'));
+    supabase.from.mockReturnValue({
+      upsert,
+      select: jest.fn(() => ({
+        order: jest.fn().mockResolvedValue({ data: [], error: null }),
+        gte: jest.fn(() => ({ order: jest.fn().mockResolvedValue({ data: [], error: null }) })),
+      })),
+    });
+
+    const { result } = renderHook(() => usePersistentStore());
+    await act(async () => {
+      for (const cb of mockAuthCallbacks) {
+        await cb('SIGNED_IN', { user: { id: 'user-abc' } });
+      }
+    });
+
+    act(() => {
+      result.current.dispatch({
+        type: 'ADD_HABIT',
+        habit: { id: 'h-link', label: 'Run', icon: '○', sphere: 'health', streak: 0, target: 'daily', doneToday: false, goalId: 'g1' },
+      } as AppAction);
+    });
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
+    const online = upsert.mock.calls.find(([row]) => row.id === 'h-link');
+    expect(online?.[0]).toMatchObject({ goal_id: 'g1' });
+    expect(queueMock.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ table: 'habits', payload: expect.objectContaining({ id: 'h-link', goal_id: 'g1' }) }),
+    );
+  });
+
   it('enqueues a journal entry (with full body) when Supabase resolves with an error', async () => {
     const { supabase, queueMock } = getMocks();
     supabase.from.mockReturnValue({

@@ -27,6 +27,7 @@ function toGoal(row: GoalRow, subtasks: GoalSubtaskRow[]): Goal {
     title: row.title,
     due: row.due_date ?? '',
     completedAt: row.completed_at ?? undefined,
+    createdAt: row.created_at,
     progress,
     sub,
   };
@@ -44,6 +45,7 @@ function toHabitItem(row: HabitRow, logs: HabitLogRow[]): HabitItem {
     calendarEventId: row.calendar_event_id ?? undefined,
     reminderHour: row.reminder_hour,
     reminderMinute: row.reminder_minute,
+    goalId: row.goal_id ?? undefined,
   };
 }
 

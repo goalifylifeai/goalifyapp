@@ -1,5 +1,7 @@
 import type { SphereId } from './theme';
-import type { Goal } from '../store/reducer';
+import type { Goal, HabitItem } from '../store/reducer';
+import { goalHealth } from '../lib/goal-health';
+import { localDateISO } from '../lib/date';
 
 export const SPHERE_LIST: SphereId[] = ['finance', 'health', 'career', 'relationships'];
 
@@ -63,15 +65,32 @@ export function affirmationFor(goalId: string, sphere: SphereId): string {
   return list[h % list.length];
 }
 
-export function computeSphereData(goals: Goal[]): Record<SphereId, { count: number; progress: number }> {
+export type SphereStats = {
+  /** Goals in the sphere (incl. completed and "no plan yet"). */
+  count: number;
+  /** Goals that have a health value, i.e. that count toward the score. */
+  scored: number;
+  /** Mean goal health over the scored goals, 0 when none. */
+  progress: number;
+};
+
+// Per-sphere stats from goal health (lib/goal-health). Goals with no plan yet
+// (no subtasks, no linked habits) are excluded from the average, the same way
+// an empty sphere is excluded from the overall score (spec 011 FR-002).
+export function computeSphereData(
+  goals: Goal[],
+  habits: readonly HabitItem[] = [],
+  today: string = localDateISO(),
+): Record<SphereId, SphereStats> {
   return SPHERE_LIST.reduce((acc, id) => {
     const sphereGoals = goals.filter(g => g.sphere === id);
-    const avgProgress = sphereGoals.length > 0
-      ? sphereGoals.reduce((sum, g) => sum + g.progress, 0) / sphereGoals.length
-      : 0;
-    acc[id] = { count: sphereGoals.length, progress: avgProgress };
+    const healths = sphereGoals
+      .map(g => goalHealth(g, habits, today))
+      .filter((h): h is number => h !== null);
+    const progress = healths.length > 0 ? healths.reduce((a, b) => a + b, 0) / healths.length : 0;
+    acc[id] = { count: sphereGoals.length, scored: healths.length, progress };
     return acc;
-  }, {} as Record<SphereId, { count: number; progress: number }>);
+  }, {} as Record<SphereId, SphereStats>);
 }
 
 // Nudge copy for a sphere that has no goal yet. Shown on the home screen
@@ -102,11 +121,13 @@ export function sphereNudge(sphereData: Record<SphereId, { count: number }>): Sp
   return { kind: 'many', spheres: empty };
 }
 
-// Overall score only averages spheres the user has actually started (has a goal
-// in). A sphere with no goals yet shouldn't drag the score toward 0 — it should
-// be neutral until the user engages with it.
-export function computeOverallScore(sphereData: Record<SphereId, { count: number; progress: number }>): number {
-  const startedSpheres = Object.values(sphereData).filter(d => d.count > 0);
+// Overall score only averages spheres with at least one scored goal. A sphere
+// with no goals yet, or only goals with no plan, shouldn't drag the score
+// toward 0 — it stays neutral until the user engages with it.
+export function computeOverallScore(
+  sphereData: Record<SphereId, { count: number; progress: number; scored?: number }>,
+): number {
+  const startedSpheres = Object.values(sphereData).filter(d => (d.scored ?? d.count) > 0);
   if (startedSpheres.length === 0) return 0;
   const avg = startedSpheres.reduce((sum, d) => sum + d.progress, 0) / startedSpheres.length;
   return Math.round(avg * 100);

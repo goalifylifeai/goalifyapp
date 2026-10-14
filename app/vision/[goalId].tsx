@@ -14,6 +14,7 @@ import { FINAL_STAGE } from '../../lib/vision-stage';
 import { VISION_SOUND_AVAILABLE } from '../../constants/flags';
 import { PAID_PLAN_SHORT } from '../../constants/brand';
 import { SPHERE_VISION_CAPTIONS } from '../../constants/data';
+import { goalHealth } from '../../lib/goal-health';
 import { usePlan } from '../../store/plan';
 import { openPaywall } from '../../lib/paywall';
 
@@ -117,7 +118,7 @@ export default function VisionFilmScreen() {
         goalTitle={goal.title}
         sphere={goal.sphere}
         caption={caption}
-        progress={goal.progress}
+        progress={goalHealth(goal, state.habits) ?? 0}
       />
 
       {/* Ambient audio teaser on Free (U5) */}

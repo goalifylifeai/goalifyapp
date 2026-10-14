@@ -4,7 +4,7 @@ import { COLORS, type SphereId } from '../../constants/theme';
 import { SPHERE_LIST, computeSphereData } from '../../constants/data';
 import { useStore } from '../../store';
 import { activeGoals } from '../../lib/goals';
-import type { Goal } from '../../store';
+import type { Goal, HabitItem } from '../../store';
 import { F } from '../ui';
 import { SphereSelectStep } from './SphereSelectStep';
 
@@ -14,16 +14,16 @@ interface Props {
 }
 
 // The started sphere (has goals) with the lowest progress, or null if none.
-function lowestSphere(goals: Goal[]): SphereId | null {
-  const data = computeSphereData(goals);
-  const started = SPHERE_LIST.filter(id => data[id].count > 0);
+function lowestSphere(goals: Goal[], habits: HabitItem[]): SphereId | null {
+  const data = computeSphereData(goals, habits);
+  const started = SPHERE_LIST.filter(id => data[id].scored > 0);
   if (started.length === 0) return null;
   return started.reduce((low, id) => (data[id].progress < data[low].progress ? id : low));
 }
 
 export function TomorrowPickStep({ selected, onSelect }: Props) {
   const { state } = useStore();
-  const suggestion = lowestSphere(activeGoals(state.goals));
+  const suggestion = lowestSphere(activeGoals(state.goals), state.habits);
 
   return (
     <View style={{ flex: 1 }}>

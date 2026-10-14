@@ -126,7 +126,7 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
     case 'ADD_HABIT': {
       const h = action.habit;
       await check(supabase.from('habits').upsert(
-        { id: h.id, user_id: userId, label: h.label, icon: h.icon, sphere: h.sphere, target_description: h.target },
+        { id: h.id, user_id: userId, label: h.label, icon: h.icon, sphere: h.sphere, target_description: h.target, goal_id: h.goalId ?? null },
         { onConflict: 'id' },
       ));
       break;
@@ -278,7 +278,7 @@ function actionToQueueItems(action: AppAction, state: AppState, userId: string):
         id: `habit:${h.id}`,
         table: 'habits',
         operation: 'upsert',
-        payload: { id: h.id, user_id: userId, label: h.label, icon: h.icon, sphere: h.sphere, target_description: h.target },
+        payload: { id: h.id, user_id: userId, label: h.label, icon: h.icon, sphere: h.sphere, target_description: h.target, goal_id: h.goalId ?? null },
         created_at: now,
         retries: 0,
       });
