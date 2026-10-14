@@ -168,5 +168,6 @@ export function useLevel() {
   // Until a server (or cached) total is known — e.g. the app shipped before
   // migrations 0026–0028 were applied — show the old level rather than
   // flashing everyone down to Level 1.
-  return levelFromXp(EARNED_XP && ready ? total : legacyXpForGoals(state.goals));
+  const xp = EARNED_XP && ready ? total : legacyXpForGoals(state.goals);
+  return { ...levelFromXp(xp), xp };
 }

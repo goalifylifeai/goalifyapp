@@ -3,9 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { COLORS } from '../../constants/theme';
 import { F } from '../../components/ui';
-import { levelFromXp } from '../../constants/data';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useProfile } from '../../store/profile';
+import { useLevel } from '../../store/xp';
 
 function TabIcon({ focused, icon }: { focused: boolean; icon: React.ReactNode }) {
   return (
@@ -22,7 +22,7 @@ const iconColor = (focused: boolean) => focused ? COLORS.ink1 : COLORS.ink3;
 
 function HeaderRight() {
   const { profile } = useProfile();
-  const lvl = levelFromXp(0);
+  const lvl = useLevel();
   const initial = profile?.display_name?.[0]?.toUpperCase() ?? '?';
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 16 }}>
@@ -48,8 +48,8 @@ function HeaderRight() {
         }}>
           <Text style={{ fontFamily: F.mono, fontSize: 11, fontWeight: '600', color: COLORS.paper }}>{lvl.lvl.n}</Text>
         </View>
-        <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink2, letterSpacing: 0.3 }}>
-          0 XP
+        <Text testID="header-xp" style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink2, letterSpacing: 0.3 }}>
+          {lvl.xp.toLocaleString('en')} XP
         </Text>
       </View>
       <TouchableOpacity onPress={() => router.push('/profile')} style={{

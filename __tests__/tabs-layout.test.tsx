@@ -17,6 +17,13 @@ jest.mock('../store/profile', () => ({
   useProfile: jest.fn(),
 }));
 
+jest.mock('../store/xp', () => ({
+  useLevel: jest.fn(() => {
+    const { levelFromXp } = jest.requireActual('../constants/data');
+    return { ...levelFromXp(1700), xp: 1700 };
+  }),
+}));
+
 jest.mock('react-native-safe-area-context', () => {
   const actual = jest.requireActual('react-native-safe-area-context');
   return {
@@ -51,6 +58,15 @@ describe('<TabLayout /> tab bar config', () => {
     const { getByText } = render(tabsCall.screenOptions.header());
     expect(getByText('goalify')).toBeTruthy();
     expect(getByText('G')).toBeTruthy(); // first letter of display_name, uppercased
+  });
+
+  it('shows the earned level and XP, not a hard-coded 0', () => {
+    render(<TabLayout />);
+    const tabsCall = (Tabs as unknown as jest.Mock).mock.calls[0][0];
+    const { getByTestId, getByText } = render(tabsCall.screenOptions.header());
+    const { levelFromXp } = jest.requireActual('../constants/data');
+    expect(getByTestId('header-xp').props.children.join('')).toBe('1,700 XP');
+    expect(getByText(String(levelFromXp(1700).lvl.n))).toBeTruthy();
   });
 
   it('shows "?" as the header initial when there is no profile display_name', () => {
