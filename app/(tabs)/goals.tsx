@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '../../components/DateTimePicker';
@@ -16,7 +16,8 @@ import { activeGoals, completedGoals } from '../../lib/goals';
 
 export default function GoalsScreen() {
   const { state, dispatch } = useStore();
-  const { sphere: sphereParam } = useLocalSearchParams<{ sphere?: string }>();
+  const { sphere: sphereParam, add: addParam, n: nonceParam } =
+    useLocalSearchParams<{ sphere?: string; add?: string; n?: string }>();
   const [filter, setFilter] = useState<string>(sphereParam ?? 'all');
   const [query, setQuery] = useState('');
   
@@ -51,16 +52,28 @@ export default function GoalsScreen() {
     dispatch({ type: 'UPDATE_GOAL', goalId: g.id, patch: { completedAt: undefined } });
 
   // Initialize form for adding
-  const startAdd = () => {
+  const startAdd = (sphere?: SphereId) => {
     setNewTitle('');
-    // Use current filter if it's a valid sphere, else default to career
-    setNewSphere(filter !== 'all' ? filter as SphereId : 'career');
+    // Use the given sphere, else the current filter if it's a sphere, else career
+    setNewSphere(sphere ?? (filter !== 'all' ? filter as SphereId : 'career'));
     setNewDue(new Date());
     setNewSubtask('');
     setSubtasks([]);
     setAdding(true);
     setEditingId(null);
   };
+
+  // Tabs stay mounted, so a later push with ?sphere= must re-sync the filter
+  // (home "Sphere balance" cards and the empty-sphere nudge both route here).
+  // ?add=1 (from the nudge) also opens the form pre-set to that sphere; the
+  // nonce lets the same nudge be tapped twice in a row.
+  useEffect(() => {
+    if (!sphereParam) return;
+    setFilter(sphereParam);
+    if (addParam === '1' && SPHERE_LIST.includes(sphereParam as SphereId)) {
+      startAdd(sphereParam as SphereId);
+    }
+  }, [sphereParam, addParam, nonceParam]);
 
   // Initialize form for editing
   const startEdit = (g: any) => {
@@ -425,7 +438,7 @@ export default function GoalsScreen() {
         {!adding ? (
           <TouchableOpacity
             testID="new-goal-button"
-            onPress={startAdd}
+            onPress={() => startAdd()}
             style={{
               borderWidth: 1, borderColor: COLORS.ink5, borderStyle: 'dashed',
               borderRadius: 18, padding: 18,

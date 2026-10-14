@@ -6,6 +6,7 @@ import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import { SPHERE_LIST, computeSphereData, computeOverallScore, affirmationFor } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Ring, Bar, Check, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
+import { SphereNudge } from '../../components/SphereNudge';
 import { activeGoals } from '../../lib/goals';
 import { useFutureSelf } from '../../store/future-self';
 import { useDailyRitual } from '../../store/daily-ritual';
@@ -248,6 +249,11 @@ export default function TodayScreen() {
         })}
       </View>
 
+      {/* Nudge toward spheres with no goal yet */}
+      <SphereNudge
+        sphereData={sphereData}
+        onAddGoal={id => router.push({ pathname: '/(tabs)/goals', params: { sphere: id, add: '1', n: String(Date.now()) } })}
+      />
 
       {/* Level + streak */}
       <View style={{ paddingHorizontal: 22, paddingTop: 22, flexDirection: 'row', gap: 10 }}>

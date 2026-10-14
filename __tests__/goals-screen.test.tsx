@@ -151,6 +151,41 @@ describe('<GoalsScreen />', () => {
     expect(queryByText('Run a 5k')).toBeNull();
   });
 
+  it('re-syncs the sphere filter when the route param changes after mount', () => {
+    const { useLocalSearchParamsMock } = getMocks();
+    useLocalSearchParamsMock.mockReturnValue({});
+    mockStore();
+
+    const { getAllByText, queryByText, rerender } = render(<GoalsScreen />);
+    expect(getAllByText('Run a 5k').length).toBeGreaterThan(0);
+
+    // Tabs stay mounted: a later push from Home only changes the params.
+    useLocalSearchParamsMock.mockReturnValue({ sphere: 'career' });
+    rerender(<GoalsScreen />);
+    expect(getAllByText('Ship the app').length).toBeGreaterThan(0);
+    expect(queryByText('Run a 5k')).toBeNull();
+  });
+
+  it('opens the add form pre-set to the sphere when routed with add=1', () => {
+    const { useLocalSearchParamsMock } = getMocks();
+    useLocalSearchParamsMock.mockReturnValue({ sphere: 'relationships', add: '1', n: '1' });
+    mockStore();
+
+    const { getByText, getByPlaceholderText } = render(<GoalsScreen />);
+    expect(getByText('New Goal')).toBeTruthy();
+    expect(getByPlaceholderText('Goal title')).toBeTruthy();
+    // The sphere picker is hidden while filtered to a sphere, so the
+    // pre-selected sphere shows up on save.
+    fireEvent.changeText(getByPlaceholderText('Goal title'), 'Call mum weekly');
+    fireEvent.press(getByText('Save'));
+    const { useStoreMock } = getMocks();
+    const dispatch = useStoreMock.mock.results[0].value.dispatch as jest.Mock;
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'ADD_GOAL',
+      goal: expect.objectContaining({ sphere: 'relationships', title: 'Call mum weekly' }),
+    }));
+  });
+
   it('filters goals by tapping a sphere pill', () => {
     mockStore();
     const { getAllByText, queryByText } = render(<GoalsScreen />);

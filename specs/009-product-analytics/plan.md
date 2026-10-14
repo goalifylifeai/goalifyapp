@@ -77,6 +77,9 @@ PostHog adds `$os`, `$app_version` and lifecycle events (`Application Opened/Ins
 | Welcome | `welcome_goal_step` | `action: saved\|skipped`, `sphere?` | `app/(welcome)/add-goal.tsx` |
 | | `welcome_task_step` | `action: saved\|skipped`, `task_count` | `app/(welcome)/add-task.tsx` |
 | | `welcome_completed` | `trial_offer_shown` | `lib/paywall.ts` finishWelcome |
+| Nudges | `sphere_nudge_viewed` | `variant: single\|many`, `remaining_count` | `components/SphereNudge.tsx` once per mount while visible |
+| | `sphere_nudge_tapped` | `sphere`, `remaining_count` | same, on sphere chip/card tap |
+| | `sphere_nudge_snoozed` | `remaining_count` | same, on "Not now" (7-day device snooze) |
 | Core loop (derived from actions) | `goal_created` | `sphere`, `has_due_date`, `subtask_count` | `store/sync.ts` dispatch → `lib/analytics-events.ts` |
 | | `goal_updated` / `goal_deleted` | `fields_changed` / `subtask_count`, `progress_pct` | same |
 | | `subtask_added` / `subtask_toggled` | `done`, `goal_progress_pct`, `goal_completed` | same |
