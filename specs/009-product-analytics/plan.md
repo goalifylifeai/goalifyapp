@@ -77,6 +77,9 @@ PostHog adds `$os`, `$app_version` and lifecycle events (`Application Opened/Ins
 | Welcome | `welcome_goal_step` | `action: saved\|skipped`, `sphere?` | `app/(welcome)/add-goal.tsx` |
 | | `welcome_task_step` | `action: saved\|skipped`, `task_count` | `app/(welcome)/add-task.tsx` |
 | | `welcome_completed` | `trial_offer_shown` | `lib/paywall.ts` finishWelcome |
+| Nudges | `sphere_nudge_viewed` | `variant: single\|many`, `remaining_count` | `components/SphereNudge.tsx` once per mount while visible |
+| | `sphere_nudge_tapped` | `sphere`, `remaining_count` | same, on sphere chip/card tap |
+| | `sphere_nudge_snoozed` | `remaining_count` | same, on "Not now" (7-day device snooze) |
 | Core loop (derived from actions) | `goal_created` | `sphere`, `has_due_date`, `subtask_count` | `store/sync.ts` dispatch → `lib/analytics-events.ts` |
 | | `goal_updated` / `goal_deleted` | `fields_changed` / `subtask_count`, `progress_pct` | same |
 | | `subtask_added` / `subtask_toggled` | `done`, `goal_progress_pct`, `goal_completed` | same |
@@ -106,7 +109,7 @@ No `is_first` flag: before the cache hydrates the store looks empty, so it would
 | Social | `circle_created` / `circle_joined` | `outcome: ok\|error` / `outcome: ok\|invalid_code\|already_member\|error` | `app/circles/index.tsx` |
 | | `circle_invite_shared` | – | `app/circles/[id].tsx` |
 | Notifications | `notification_permission_result` | `granted` | `lib/notifications.ts` |
-| | `notification_opened` | `kind: morning\|lunch\|evening\|sentiment\|streak_risk\|habit_reminder\|trial_ending\|other` | `app/_layout.tsx` NotificationListener |
+| | `notification_opened` | `kind: morning\|lunch\|evening\|sentiment\|streak_risk\|habit_reminder\|goal_due\|trial_ending\|other` | `app/_layout.tsx` NotificationListener |
 | Consent | `analytics_consent_changed` | `granted: true` (only sendable when granting) | consent screen / profile |
 | Server | `subscription_started` / `subscription_renewed` / `subscription_cancelled` / `subscription_uncancelled` / `subscription_expired` / `billing_issue` / `subscription_product_changed` | `period_type`, `store`, `product_id`, `is_trial_conversion`, `price_usd` | `supabase/functions/revenuecat-webhook` |
 

@@ -33,7 +33,9 @@ import { AnalyticsBridge } from '../components/analytics/AnalyticsBridge';
 import { track, useAnalyticsConsent } from '../lib/analytics';
 import { notificationKind } from '../lib/analytics-screen';
 import { decideRoute } from '../lib/auth-route';
-import { ensureNotificationsScheduled, ensureHabitRemindersScheduled } from '../lib/notifications';
+import { ensureNotificationsScheduled, ensureHabitRemindersScheduled, ensureGoalRemindersScheduled } from '../lib/notifications';
+import { planGoalReminders } from '../lib/goal-reminders';
+import { getNotificationTimes } from '../lib/notification-prefs';
 import { useStore } from '../store';
 
 SplashScreen.preventAutoHideAsync();
@@ -50,6 +52,11 @@ function NotificationListener() {
       else if (screen === 'evening') router.push('/ritual/evening' as any);
       else if (screen === 'habits') router.push('/(tabs)/habits' as any);
       else if (screen === 'profile') router.push('/profile' as any);
+      else if (screen === 'journal') router.push('/(tabs)/journal' as any);
+      else if (screen === 'goals') {
+        const sphere = response.notification.request.content.data?.sphere as string | undefined;
+        router.push({ pathname: '/(tabs)/goals', params: sphere ? { sphere } : {} } as any);
+      }
     });
     return () => sub.remove();
   }, [router]);
@@ -70,6 +77,22 @@ function HabitReminderScheduler() {
   useEffect(() => {
     ensureHabitRemindersScheduled(habits).catch(() => {});
   }, [habits]);
+  return null;
+}
+
+function GoalReminderScheduler() {
+  const { state } = useStore();
+  const { goals, habits } = state;
+  useEffect(() => {
+    let cancelled = false;
+    getNotificationTimes()
+      .then(({ eveningHour, eveningMinute }) => {
+        if (cancelled) return;
+        return ensureGoalRemindersScheduled(planGoalReminders(goals, habits, new Date(), eveningHour, eveningMinute));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [goals, habits]);
   return null;
 }
 
@@ -180,6 +203,7 @@ export default function RootLayout() {
                   <NotificationListener />
                   <RitualScheduler />
                   <HabitReminderScheduler />
+                  <GoalReminderScheduler />
                   <TrialWatcher />
                   <Stack
                     screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.paper } }}

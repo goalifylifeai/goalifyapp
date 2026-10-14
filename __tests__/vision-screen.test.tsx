@@ -31,12 +31,12 @@ import { useVisionAssets } from '../store/vision';
 import { usePlan } from '../store/plan';
 import * as flags from '../constants/flags';
 
-const goal = { id: 'g1', title: 'Run a marathon', sphere: 'health' as const, progress: 0.4 };
+const goal = { id: 'g1', title: 'Run a marathon', sphere: 'health' as const, progress: 0.4, due: '', sub: [] };
 
 beforeEach(() => {
   jest.clearAllMocks();
   (flags as any).VISION_SOUND_AVAILABLE = false;
-  (useStore as jest.Mock).mockReturnValue({ state: { goals: [goal] } });
+  (useStore as jest.Mock).mockReturnValue({ state: { goals: [goal], habits: [] } });
   (useVisionAssets as jest.Mock).mockReturnValue({
     getSignedUrl: () => undefined,
     getAsset: () => undefined,

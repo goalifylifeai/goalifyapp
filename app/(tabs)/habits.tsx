@@ -210,6 +210,9 @@ export default function HabitsScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
                 <TouchableOpacity
                   onPress={() => toggle(h.id)}
+                  role="checkbox"
+                  aria-checked={h.doneToday}
+                  aria-label={`${h.label} done today`}
                   style={{
                     width: 42, height: 42, borderRadius: 12,
                     backgroundColor: h.doneToday ? s.accent : s.soft,
@@ -263,7 +266,7 @@ export default function HabitsScreen() {
                 )}
               </TouchableOpacity>
               {confirmDeleteFor !== h.id && (
-                <TouchableOpacity testID={`delete-habit-${h.id}`} onPress={() => setConfirmDeleteFor(h.id)} hitSlop={8}>
+                <TouchableOpacity testID={`delete-habit-${h.id}`} accessibilityLabel={`Delete ${h.label}`} onPress={() => setConfirmDeleteFor(h.id)} hitSlop={8}>
                   <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink4 }}>Delete</Text>
                 </TouchableOpacity>
               )}
@@ -277,7 +280,7 @@ export default function HabitsScreen() {
                   <TouchableOpacity onPress={() => setConfirmDeleteFor(null)} hitSlop={8}>
                     <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.ink3 }}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity testID={`confirm-delete-habit-${h.id}`} onPress={() => deleteHabit(h)} hitSlop={8}>
+                  <TouchableOpacity testID={`confirm-delete-habit-${h.id}`} accessibilityLabel={`Confirm delete ${h.label}`} onPress={() => deleteHabit(h)} hitSlop={8}>
                     <Text style={{ fontFamily: F.mono, fontSize: 11, color: COLORS.accentWarm }}>Delete</Text>
                   </TouchableOpacity>
                 </View>

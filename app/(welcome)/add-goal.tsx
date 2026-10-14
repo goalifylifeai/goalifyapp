@@ -25,7 +25,7 @@ export default function WelcomeAddGoal() {
 
   const [sphere, setSphere] = useState<SphereId>('career');
   const [title, setTitle] = useState('');
-  const [due, setDue] = useState(new Date());
+  const [due, setDue] = useState<Date | null>(null); // optional (spec 011 FR-004)
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [habitPrompt, setHabitPrompt] = useState<{ goalId: string; sphere: SphereId; title: string } | null>(null);
 
@@ -48,7 +48,7 @@ export default function WelcomeAddGoal() {
     const goalId = newId();
     dispatch({
       type: 'ADD_GOAL',
-      goal: { id: goalId, sphere, title: t, due: localDateISO(due), progress: 0, sub: [] },
+      goal: { id: goalId, sphere, title: t, due: due ? localDateISO(due) : '', progress: 0, sub: [], createdAt: new Date().toISOString() },
     });
     track('welcome_goal_step', { action: 'saved', sphere });
     setHabitPrompt({ goalId, sphere, title: t });
@@ -174,9 +174,10 @@ export default function WelcomeAddGoal() {
 
         {/* Due date picker */}
         <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: COLORS.ink3, marginBottom: 10 }}>
-          Target date
+          Target date · optional
         </Text>
         <TouchableOpacity
+          testID="welcome-due-set"
           onPress={() => setShowDatePicker(true)}
           style={{
             borderRadius: 14, backgroundColor: COLORS.surface,
@@ -184,17 +185,23 @@ export default function WelcomeAddGoal() {
             flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
           }}
         >
-          <Text style={{ fontFamily: F.display, fontSize: 18, color: COLORS.ink1 }}>
-            {formatDisplayDate(localDateISO(due))}
+          <Text style={{ fontFamily: F.display, fontSize: 18, color: due ? COLORS.ink1 : COLORS.ink3 }}>
+            {due ? formatDisplayDate(localDateISO(due)) : 'No date'}
           </Text>
-          <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>CHANGE</Text>
+          {due ? (
+            <TouchableOpacity testID="welcome-due-clear" onPress={() => { setDue(null); setShowDatePicker(false); }} hitSlop={8}>
+              <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>CLEAR</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={{ fontFamily: F.mono, fontSize: 10, color: COLORS.ink3 }}>SET</Text>
+          )}
         </TouchableOpacity>
 
         {showDatePicker && (
           <DateTimePicker
-            value={due}
+            value={due ?? tomorrow()}
             mode="date"
-            minimumDate={new Date()}
+            minimumDate={tomorrow()}
             display={Platform.OS === 'ios' ? 'inline' : 'default'}
             onChange={onDateChange}
           />
@@ -229,3 +236,10 @@ export default function WelcomeAddGoal() {
   );
 }
 
+
+function tomorrow(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 1);
+  return d;
+}

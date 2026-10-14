@@ -22,5 +22,6 @@ export function notificationKind(identifier: string): string {
   if (identifier === 'sentiment-check-in') return 'sentiment';
   if (identifier === 'trial-ending') return 'trial_ending';
   if (identifier.startsWith('habit-reminder-')) return 'habit_reminder';
+  if (identifier.startsWith('goal-due-')) return 'goal_due';
   return 'other';
 }

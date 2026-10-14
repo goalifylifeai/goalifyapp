@@ -70,11 +70,11 @@ const g2: Goal = {
   id: 'g2', sphere: 'career', title: 'Ship the app', due: 'Jul 4', progress: 0, sub: [],
 };
 
-function mockStore(goals: Goal[] = [g1, g2]) {
+function mockStore(goals: Goal[] = [g1, g2], habits: any[] = []) {
   const dispatch = jest.fn();
   const { useStoreMock } = getMocks();
   useStoreMock.mockReturnValue({
-    state: { goals, habits: [], journal: [], todayActions: [], coachMessages: [] },
+    state: { goals, habits, journal: [], todayActions: [], coachMessages: [] },
     dispatch,
   });
   return dispatch;
@@ -108,7 +108,7 @@ describe('<GoalsScreen />', () => {
       mockStore();
       const { getByTestId, getByText, queryByTestId } = render(<GoalsScreen />);
       fireEvent.press(getByTestId('new-goal-button'));
-      fireEvent.press(getByText(/^Due:/));
+      fireEvent.press(getByTestId('goal-due-set'));
       fireEvent(getByTestId('date-picker'), 'onChange', { type: 'set' }, new Date(2030, 0, 15));
       expect(!!queryByTestId('date-picker')).toBe(staysOpen);
     } finally {
@@ -149,6 +149,41 @@ describe('<GoalsScreen />', () => {
     const { getAllByText, queryByText } = render(<GoalsScreen />);
     expect(getAllByText('Ship the app').length).toBeGreaterThan(0);
     expect(queryByText('Run a 5k')).toBeNull();
+  });
+
+  it('re-syncs the sphere filter when the route param changes after mount', () => {
+    const { useLocalSearchParamsMock } = getMocks();
+    useLocalSearchParamsMock.mockReturnValue({});
+    mockStore();
+
+    const { getAllByText, queryByText, rerender } = render(<GoalsScreen />);
+    expect(getAllByText('Run a 5k').length).toBeGreaterThan(0);
+
+    // Tabs stay mounted: a later push from Home only changes the params.
+    useLocalSearchParamsMock.mockReturnValue({ sphere: 'career' });
+    rerender(<GoalsScreen />);
+    expect(getAllByText('Ship the app').length).toBeGreaterThan(0);
+    expect(queryByText('Run a 5k')).toBeNull();
+  });
+
+  it('opens the add form pre-set to the sphere when routed with add=1', () => {
+    const { useLocalSearchParamsMock } = getMocks();
+    useLocalSearchParamsMock.mockReturnValue({ sphere: 'relationships', add: '1', n: '1' });
+    mockStore();
+
+    const { getByText, getByPlaceholderText } = render(<GoalsScreen />);
+    expect(getByText('New Goal')).toBeTruthy();
+    expect(getByPlaceholderText('Goal title')).toBeTruthy();
+    // The sphere picker is hidden while filtered to a sphere, so the
+    // pre-selected sphere shows up on save.
+    fireEvent.changeText(getByPlaceholderText('Goal title'), 'Call mum weekly');
+    fireEvent.press(getByText('Save'));
+    const { useStoreMock } = getMocks();
+    const dispatch = useStoreMock.mock.results[0].value.dispatch as jest.Mock;
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'ADD_GOAL',
+      goal: expect.objectContaining({ sphere: 'relationships', title: 'Call mum weekly' }),
+    }));
   });
 
   it('filters goals by tapping a sphere pill', () => {
@@ -320,5 +355,81 @@ describe('<GoalsScreen />', () => {
     fireEvent.press(getByTestId('vision-banner-Run a 5k'));
 
     expect(routerMock.push).toHaveBeenCalledWith('/vision/g1');
+  });
+
+  // ── Spec 011: goal health ───────────────────────────────────────
+  describe('goal health', () => {
+    const { localDateISO, addDaysISO } = require('../lib/date');
+    const today = localDateISO();
+    const createdAt = new Date(`${addDaysISO(today, -30)}T12:00:00`).toISOString();
+
+    it('creates a goal with no due date by default and stamps createdAt (FR-004)', () => {
+      const dispatch = mockStore([]);
+      const { getByTestId, getByText } = render(<GoalsScreen />);
+      fireEvent.press(getByTestId('new-goal-button'));
+      expect(getByText(/No due date/)).toBeTruthy();
+      fireEvent.changeText(getByTestId('goal-title-input'), 'Learn Spanish');
+      fireEvent.press(getByTestId('save-goal-button'));
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'ADD_GOAL',
+        goal: expect.objectContaining({ title: 'Learn Spanish', due: '', createdAt: expect.stringMatching(/^\d{4}-/) }),
+      }));
+    });
+
+    it('can clear a date that was set in the form', () => {
+      const dispatch = mockStore([]);
+      const { getByTestId, queryByTestId } = render(<GoalsScreen />);
+      fireEvent.press(getByTestId('new-goal-button'));
+      fireEvent.press(getByTestId('goal-due-set'));
+      fireEvent(getByTestId('date-picker'), 'onChange', { type: 'set' }, new Date(2030, 0, 15));
+      fireEvent.press(getByTestId('goal-due-clear'));
+      expect(queryByTestId('goal-due-clear')).toBeNull();
+      fireEvent.changeText(getByTestId('goal-title-input'), 'X');
+      fireEvent.press(getByTestId('save-goal-button'));
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ goal: expect.objectContaining({ due: '' }) }));
+    });
+
+    it('editing a goal without touching the date does not rewrite it (legacy dates stay stored)', () => {
+      const legacy: Goal = { id: 'gl', sphere: 'health', title: 'Old', due: addDaysISO(today, -30), progress: 0, sub: [], createdAt };
+      const dispatch = mockStore([legacy]);
+      const { getByText, getByTestId } = render(<GoalsScreen />);
+      fireEvent.press(getByText('EDIT'));
+      fireEvent.press(getByTestId('save-goal-button'));
+      const call = dispatch.mock.calls.find(([a]) => a.type === 'UPDATE_GOAL');
+      expect(call![0].patch).not.toHaveProperty('due');
+    });
+
+    it('labels an overdue goal, lists it first, and offers one-tap fixes (AS2.4, FR-008)', () => {
+      const onTrack: Goal = { id: 'ok', sphere: 'career', title: 'On track', due: '', progress: 0, sub: [], createdAt };
+      const late: Goal = { id: 'late', sphere: 'career', title: 'Late one', due: addDaysISO(today, -3), progress: 0, sub: [], createdAt };
+      const dispatch = mockStore([onTrack, late]);
+      const { getByTestId, getAllByText } = render(<GoalsScreen />);
+
+      expect(getByTestId('goal-status-late').props.children).toBe('Overdue · 3 days');
+      const titles = getAllByText(/^(On track|Late one)$/).map(n => n.props.children);
+      expect(titles[0]).toBe('Late one');
+
+      fireEvent.press(getByTestId('goal-move-due-late'));
+      expect(dispatch).toHaveBeenCalledWith({ type: 'UPDATE_GOAL', goalId: 'late', patch: { due: addDaysISO(today, 7) } });
+      fireEvent.press(getByTestId('goal-clear-due-late'));
+      expect(dispatch).toHaveBeenCalledWith({ type: 'UPDATE_GOAL', goalId: 'late', patch: { due: '' } });
+    });
+
+    it('shows "no plan yet" instead of 0% for a goal with no subtasks or habits (AS1.1)', () => {
+      const bare: Goal = { id: 'bare', sphere: 'health', title: 'Bare', due: '', progress: 0, sub: [], createdAt };
+      mockStore([bare]);
+      const { getByTestId, queryByTestId } = render(<GoalsScreen />);
+      expect(getByTestId('goal-no-plan-bare')).toBeTruthy();
+      expect(queryByTestId('goal-health-bare')).toBeNull();
+    });
+
+    it('shows health from a linked habit (AS1.2)', () => {
+      const run: Goal = { id: 'run', sphere: 'health', title: 'Run', due: '', progress: 0, sub: [], createdAt };
+      const history = [1, 2, 3, 4, 5].map(n => addDaysISO(today, -n));
+      mockStore([run], [{ id: 'h', label: 'Run', icon: '○', sphere: 'health', streak: 0, target: '', doneToday: false, history, goalId: 'run' }]);
+      const { getByTestId, getByText } = render(<GoalsScreen />);
+      expect(getByTestId('goal-health-run').props.children).toEqual([71, '%']);
+      expect(getByText(/5\/7 DAYS THIS WEEK/)).toBeTruthy();
+    });
   });
 });

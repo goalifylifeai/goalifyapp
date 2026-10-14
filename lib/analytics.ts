@@ -33,6 +33,10 @@ export type EventMap = {
   welcome_task_step: { action: 'saved' | 'skipped'; task_count: number };
   welcome_completed: { trial_offer_shown: boolean };
 
+  sphere_nudge_viewed: { variant: 'single' | 'many'; remaining_count: number };
+  sphere_nudge_tapped: { sphere: SphereId; remaining_count: number };
+  sphere_nudge_snoozed: { remaining_count: number };
+
   goal_created: { sphere: SphereId; has_due_date: boolean; subtask_count: number };
   goal_updated: { fields_changed: string[] };
   goal_deleted: { subtask_count: number; progress_pct: number };

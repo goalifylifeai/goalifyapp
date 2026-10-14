@@ -6,6 +6,7 @@ import { COLORS, SPHERE_COLORS } from '../../constants/theme';
 import { SPHERE_LIST, computeSphereData, computeOverallScore, affirmationFor } from '../../constants/data';
 import { SectionLabel, Card, SphereChip, Ring, Bar, Check, Pill, F } from '../../components/ui';
 import { useStore } from '../../store';
+import { SphereNudge } from '../../components/SphereNudge';
 import { activeGoals } from '../../lib/goals';
 import { useFutureSelf } from '../../store/future-self';
 import { useDailyRitual } from '../../store/daily-ritual';
@@ -63,14 +64,15 @@ export default function TodayScreen() {
   ];
 
   // Sphere calculations
-  const sphereData = computeSphereData(state.goals);
+  const sphereData = computeSphereData(state.goals, state.habits);
   const overall = computeOverallScore(sphereData);
 
   const lvl = useLevel();
   
   // Only compare spheres the user has actually started (has a goal in) —
   // an empty sphere isn't "holding you back", it just hasn't been touched yet.
-  const startedSpheres = SPHERE_LIST.filter(id => sphereData[id].count > 0)
+  // Spheres with a scored goal (goals with no plan yet don't rank a sphere).
+  const startedSpheres = SPHERE_LIST.filter(id => sphereData[id].scored > 0)
     .sort((a, b) => sphereData[b].progress - sphereData[a].progress);
   const top = startedSpheres[0];
   const low = startedSpheres[startedSpheres.length - 1];
@@ -248,6 +250,11 @@ export default function TodayScreen() {
         })}
       </View>
 
+      {/* Nudge toward spheres with no goal yet */}
+      <SphereNudge
+        sphereData={sphereData}
+        onAddGoal={id => router.push({ pathname: '/(tabs)/goals', params: { sphere: id, add: '1', n: String(Date.now()) } })}
+      />
 
       {/* Level + streak */}
       <View style={{ paddingHorizontal: 22, paddingTop: 22, flexDirection: 'row', gap: 10 }}>
