@@ -57,6 +57,7 @@ export type EventMap = {
 
   // Gamification (spec 010). XP awards themselves are in the xp_events table.
   level_reached: { level: number };
+  achievement_unlocked: { achievement: string };
   rest_day_used: { streak: number };
 
   coach_message_sent: {};

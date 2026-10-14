@@ -5,7 +5,9 @@ import { COLORS } from '../constants/theme';
 import { F, Ring } from '../components/ui';
 import { LEVELS } from '../constants/data';
 import { XP } from '../lib/xp';
-import { useLevel } from '../store/xp';
+import { useLevel, useXp } from '../store/xp';
+import { ACHIEVEMENTS, ACHIEVEMENT_FAMILIES } from '../lib/achievements';
+import { formatDisplayDate, localDateISO } from '../lib/date';
 
 export default function LevelInfoScreen() {
   const insets = useSafeAreaInsets();
@@ -128,7 +130,58 @@ export default function LevelInfoScreen() {
             );
           })}
         </View>
+
+        <AchievementsSection />
       </ScrollView>
+    </View>
+  );
+}
+
+// Every achievement, earned (with date) or locked (with how to earn it).
+// Spec 012 Story 2 AS4.
+function AchievementsSection() {
+  const { achievements } = useXp();
+  const unlocked = new Map(achievements.map(a => [a.key, a.unlockedAt]));
+  const earned = ACHIEVEMENTS.filter(a => unlocked.has(a.key)).length;
+
+  return (
+    <View testID="achievements-section" style={{ marginTop: 36 }}>
+      <Text style={{ fontFamily: F.mono, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>
+        Achievements
+      </Text>
+      <Text testID="achievements-count" style={{ fontFamily: F.mono, fontSize: 12, color: 'rgba(255,255,255,0.55)', marginBottom: 18 }}>
+        {earned} of {ACHIEVEMENTS.length} earned
+      </Text>
+      {ACHIEVEMENT_FAMILIES.map(fam => (
+        <View key={fam.id} style={{ marginBottom: 20 }}>
+          <Text style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>
+            {fam.label}
+          </Text>
+          <View style={{ gap: 2 }}>
+            {ACHIEVEMENTS.filter(a => a.family === fam.id).map(a => {
+              const at = unlocked.get(a.key);
+              return (
+                <View
+                  key={a.key}
+                  testID={`achievement-${a.key}`}
+                  accessibilityLabel={`${a.title}, ${at ? 'earned' : 'locked'}. ${a.howTo}`}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, backgroundColor: at ? 'rgba(255,255,255,0.08)' : 'transparent' }}
+                >
+                  <Text style={{ fontFamily: F.mono, fontSize: 14, width: 18, textAlign: 'center', color: at ? COLORS.paper : 'rgba(255,255,255,0.2)' }}>
+                    {at ? '✦' : '·'}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: F.display, fontSize: 17, lineHeight: 21, color: at ? COLORS.paper : 'rgba(255,255,255,0.35)' }}>{a.title}</Text>
+                    <Text style={{ fontFamily: F.mono, fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2, lineHeight: 15 }}>
+                      {at ? `Earned ${formatDisplayDate(localDateISO(new Date(at)))}` : a.howTo}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ))}
     </View>
   );
 }

@@ -297,7 +297,7 @@ Monte-Carlo, 300 runs × 2 years per persona, using the XP table above. Script: 
 
 ## Open questions (follow-up specs)
 
-- **Q1** Level-up moment and what each level unlocks (ritual themes, widget styles, vision looks).
-- **Q2** Life-area achievements ("Balanced week") and reopening the future-self letter at Levels 3, 5 and 8.
+- **Q1** Level-up moment and what each level unlocks (ritual themes, widget styles, vision looks). *Moment: done in `specs/012-levels-achievements`. Unlocks: still open.*
+- **Q2** Life-area achievements ("Balanced week") and reopening the future-self letter at Levels 3, 5 and 8. *Achievements incl. Balanced week: done in `specs/012-levels-achievements`. Future-self letter at levels: still open.*
 - **Q3** A weekly-rhythm streak for light users.
 - **Q4** Circles v2: a shared circle streak and one-tap reactions.

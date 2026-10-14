@@ -28,6 +28,7 @@ import { VisionAssetsProvider } from '../store/vision';
 import { CoachAiProvider } from '../store/coach-ai';
 import { CirclesProvider } from '../store/circles';
 import { XpProvider } from '../store/xp';
+import { MomentOverlay } from '../components/MomentOverlay';
 import { TrialWatcher } from '../components/TrialWatcher';
 import { AnalyticsBridge } from '../components/analytics/AnalyticsBridge';
 import { track, useAnalyticsConsent } from '../lib/analytics';
@@ -205,6 +206,7 @@ export default function RootLayout() {
                   <HabitReminderScheduler />
                   <GoalReminderScheduler />
                   <TrialWatcher />
+                  <MomentOverlay />
                   <Stack
                     screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.paper } }}
                   >
