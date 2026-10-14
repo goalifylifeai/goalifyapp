@@ -299,6 +299,13 @@ describe('usePersistentStore', () => {
     });
 
     expect(fromCalls).toContain('habit_logs');
+    // habit_logs.id is a database-generated uuid: send no id, match on
+    // (habit_id, date). A "<habit>:<date>" id was rejected for every check-off.
+    const logUpsert = mockUpsert.mock.calls.find(([row]) => row.habit_id === 'h99');
+    expect(logUpsert).toBeDefined();
+    expect(logUpsert![0]).not.toHaveProperty('id');
+    expect(logUpsert![0]).toMatchObject({ habit_id: 'h99', user_id: 'user-xyz', done: true });
+    expect(logUpsert![1]).toEqual({ onConflict: 'habit_id,date' });
   });
 
   it('maps SET_HABIT_REMINDER dispatch to a habits table update with reminder fields', async () => {

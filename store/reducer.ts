@@ -133,7 +133,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         habits: state.habits.map(h => {
           if (h.id !== action.id) return h;
           const history = h.history ?? [];
-          const wasDone = history.includes(today);
+          // doneToday too: a copy without history (e.g. an older cache) must
+          // still uncheck rather than check again.
+          const wasDone = h.doneToday || history.includes(today);
           const newHistory = wasDone ? history.filter(d => d !== today) : [...history, today];
           return { ...h, doneToday: !wasDone, history: newHistory, streak: calcStreak(newHistory) };
         }),

@@ -1,3 +1,4 @@
+import { localDateISO } from '../lib/date';
 // Mock native modules pulled in transitively by store/sync.ts
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn().mockResolvedValue(null),
@@ -121,6 +122,15 @@ describe('TOGGLE_HABIT', () => {
     const prev = habit.doneToday;
     const next = appReducer(s, { type: 'TOGGLE_HABIT', id: habit.id });
     expect(next.habits.find(h => h.id === habit.id)!.doneToday).toBe(!prev);
+  });
+
+  it('unchecks a habit marked done today even when its history is missing', () => {
+    const s = state();
+    const h = { ...s.habits[0], doneToday: true, history: undefined };
+    const next = appReducer({ ...s, habits: [h, ...s.habits.slice(1)] }, { type: 'TOGGLE_HABIT', id: h.id });
+    const after = next.habits.find(x => x.id === h.id)!;
+    expect(after.doneToday).toBe(false);
+    expect(after.history ?? []).not.toContain(localDateISO());
   });
 });
 

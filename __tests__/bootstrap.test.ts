@@ -23,7 +23,7 @@ jest.mock('../lib/supabase', () => {
   };
 });
 
-import { bootstrapUserData, computeStreak, deriveDoneToday } from '../lib/bootstrap';
+import { bootstrapUserData, computeStreak, deriveDoneToday, deriveHistory } from '../lib/bootstrap';
 import { localDateISO, addDaysISO } from '../lib/date';
 import type { HabitLogRow } from '../lib/supabase';
 
@@ -76,6 +76,19 @@ describe('computeStreak', () => {
   it('ignores logs for other habits', () => {
     const foreign: HabitLogRow = { id: 'x', habit_id: 'h2', user_id: 'u1', date: d(1), done: true, created_at: '' };
     expect(computeStreak('h1', [foreign])).toBe(0);
+  });
+});
+
+// ── deriveHistory ──────────────────────────────────────────────────
+describe('deriveHistory', () => {
+  const row = (habit_id: string, date: string, done: boolean): HabitLogRow =>
+    ({ id: `${habit_id}${date}`, habit_id, user_id: 'u1', date, done, created_at: date });
+
+  it("lists this habit's done dates, oldest first, without undone or other habits' days", () => {
+    expect(deriveHistory('h1', [
+      row('h1', '2026-10-05', true), row('h1', '2026-10-03', true),
+      row('h1', '2026-10-04', false), row('h2', '2026-10-02', true),
+    ])).toEqual(['2026-10-03', '2026-10-05']);
   });
 });
 

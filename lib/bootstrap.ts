@@ -10,6 +10,11 @@ export function computeStreak(habitId: string, logs: HabitLogRow[]): number {
   return streakFromDates(doneDates);
 }
 
+// Dates the habit was done, oldest first: feeds the heatmap and the toggle.
+export function deriveHistory(habitId: string, logs: HabitLogRow[]): string[] {
+  return [...new Set(logs.filter(l => l.habit_id === habitId && l.done).map(l => l.date))].sort();
+}
+
 export function deriveDoneToday(habitId: string, logs: HabitLogRow[]): boolean {
   const today = localDateISO();
   return logs.some(l => l.habit_id === habitId && l.date === today && l.done);
@@ -42,6 +47,7 @@ function toHabitItem(row: HabitRow, logs: HabitLogRow[]): HabitItem {
     streak: computeStreak(row.id, logs),
     target: row.target_description,
     doneToday: deriveDoneToday(row.id, logs),
+    history: deriveHistory(row.id, logs),
     calendarEventId: row.calendar_event_id ?? undefined,
     reminderHour: row.reminder_hour,
     reminderMinute: row.reminder_minute,

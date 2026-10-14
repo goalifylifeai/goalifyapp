@@ -152,9 +152,10 @@ async function syncAction(action: AppAction, state: AppState, userId: string): P
       const habit = state.habits.find(h => h.id === action.id);
       if (!habit) return;
       const today = localDateISO();
-      const logId = `${action.id}:${today}`;
+      // No id: habit_logs.id is a uuid the database generates; a row is
+      // identified by (habit_id, date).
       await check(supabase.from('habit_logs').upsert(
-        { id: logId, habit_id: action.id, user_id: userId, date: today, done: habit.doneToday },
+        { habit_id: action.id, user_id: userId, date: today, done: habit.doneToday },
         { onConflict: 'habit_id,date' },
       ));
       break;
@@ -266,7 +267,7 @@ function actionToQueueItems(action: AppAction, state: AppState, userId: string):
         id: `habit_log:${action.id}:${today}`,
         table: 'habit_logs',
         operation: 'upsert',
-        payload: { id: `${action.id}:${today}`, habit_id: action.id, user_id: userId, date: today, done: habit.doneToday },
+        payload: { habit_id: action.id, user_id: userId, date: today, done: habit.doneToday },
         created_at: now,
         retries: 0,
       });
@@ -336,7 +337,13 @@ function actionToQueueItems(action: AppAction, state: AppState, userId: string):
 }
 
 async function replayQueueItem(item: QueueItem): Promise<void> {
-  if (item.operation === 'upsert') {
+  if (item.operation === 'upsert' && item.table === 'habit_logs') {
+    // Keyed by (habit_id, date). Items queued by older builds carry an
+    // `id` of "<habit>:<date>", which isn't a uuid and was always rejected.
+    const { id: _legacyId, ...row } = item.payload;
+    const { error } = await supabase.from('habit_logs').upsert(row, { onConflict: 'habit_id,date' });
+    if (error) throw error;
+  } else if (item.operation === 'upsert') {
     const { error } = await supabase.from(item.table).upsert(item.payload, { onConflict: 'id' });
     if (error) throw error;
   } else {

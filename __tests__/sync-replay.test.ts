@@ -103,6 +103,38 @@ describe('usePersistentStore — replayQueueItem via real offline-queue', () => 
     expect(remaining).toEqual([]);
   });
 
+  it('replays a queued habit log by (habit_id, date), dropping the old non-uuid id', async () => {
+    renderHook(() => usePersistentStore());
+    await signIn();
+    const { asyncMock, supabase } = getMocks();
+    // Shape queued by builds before the fix: id "<habit>:<date>" was always
+    // rejected by the uuid column.
+    await asyncMock.setItem(QUEUE_KEY, JSON.stringify([
+      {
+        id: 'habit_log:h1:2026-10-05', table: 'habit_logs', operation: 'upsert',
+        payload: { id: 'h1:2026-10-05', habit_id: 'h1', user_id: 'user-1', date: '2026-10-05', done: true },
+        created_at: new Date().toISOString(), retries: 0,
+      },
+    ]));
+
+    const mockUpsert = jest.fn().mockResolvedValue({ error: null });
+    supabase.from.mockReturnValue({ upsert: mockUpsert });
+
+    act(() => {
+      mockNetInfoListeners[0]({ isConnected: true });
+    });
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    });
+
+    expect(supabase.from).toHaveBeenCalledWith('habit_logs');
+    expect(mockUpsert).toHaveBeenCalledWith(
+      { habit_id: 'h1', user_id: 'user-1', date: '2026-10-05', done: true },
+      { onConflict: 'habit_id,date' },
+    );
+    expect(JSON.parse(asyncMock.__getStore()[QUEUE_KEY])).toEqual([]);
+  });
+
   it('replays a queued delete successfully', async () => {
     renderHook(() => usePersistentStore());
     await signIn();
