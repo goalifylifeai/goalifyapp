@@ -1,8 +1,11 @@
 // Supabase Edge Function (Deno runtime)
 // Generates real, data-grounded coaching content (insights, weekly reflection,
-// chat replies) by loading the caller's own goals/habits/journal and asking
+// chat replies) by loading the caller's own goals/habits and asking
 // Gemini (Google's OpenAI-compatible endpoint) to reason over it. Insights and weekly
 // reflection are cached in `coach_insights`; chat replies are stateless.
+//
+// Journal entries and their mood scores are private: they are never sent to
+// Gemini. The sentiment check-in reads mood scores here and uses fixed copy.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { consumeQuotas, getPlan, type Limit, type Plan } from '../_shared/plan.ts';
@@ -12,7 +15,8 @@ const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat
 // Gemini 3.1 Flash-Lite: a max-usage Goalify Beyond user costs ~$0.46/month
 // against ~$3.39 net revenue (see docs/superpowers/specs/2026-09-23-paid-tiers-user-behaviour.md).
 // The key must belong to a billing-enabled project: on Google's free tier,
-// prompts (users' journal entries) can be used for training and human review.
+// prompts (users' goals, habits and coach messages) can be used for training
+// and human review.
 const MODEL = 'gemini-3.1-flash-lite';
 // How long a generated result is served from coach_insights before the next
 // app open regenerates it. The app requests both on every launch, so these
@@ -144,12 +148,12 @@ Deno.serve(async (req: Request) => {
 
   // Load the caller's real data (server-side, never trust client-supplied context).
   const since = daysAgoISO(30);
-  const [{ data: goals }, { data: subtasks }, { data: habits }, { data: logs }, { data: journal }] = await Promise.all([
+  // Journal entries are deliberately absent: this context is sent to Gemini.
+  const [{ data: goals }, { data: subtasks }, { data: habits }, { data: logs }] = await Promise.all([
     adminClient.from('goals').select('id,sphere,title,due_date').eq('user_id', user.id),
     adminClient.from('goal_subtasks').select('goal_id,text,done').eq('user_id', user.id),
     adminClient.from('habits').select('id,label,sphere,target_description').eq('user_id', user.id),
     adminClient.from('habit_logs').select('habit_id,date,done').eq('user_id', user.id).gte('date', since),
-    adminClient.from('journal_entries').select('date,sentiment,excerpt').eq('user_id', user.id).gte('date', since).order('date', { ascending: false }).order('created_at', { ascending: false }).limit(30),
   ]);
 
   const context = {
@@ -161,13 +165,12 @@ Deno.serve(async (req: Request) => {
       ...h,
       recent_logs: (logs ?? []).filter(l => l.habit_id === h.id),
     })),
-    journal_last_30_days: journal ?? [],
   };
 
-  const hasAnyData = context.goals.length > 0 || context.habits.length > 0 || context.journal_last_30_days.length > 0;
+  const hasAnyData = context.goals.length > 0 || context.habits.length > 0;
 
   const system = 'You are a calm, precise personal-growth coach embedded in an app called Goalify. ' +
-    'You are given a user\'s real goals, habits (with recent completion logs), and recent journal entries. ' +
+    'You are given a user\'s real goals and habits (with recent completion logs). ' +
     'Ground every claim strictly in this data — never invent facts, streaks, or numbers not present in it. ' +
     'If the data is sparse, say so plainly rather than fabricating a pattern. ' +
     'Respond with ONLY valid JSON, no prose outside the JSON, no markdown fences.';
@@ -213,7 +216,7 @@ Deno.serve(async (req: Request) => {
     if (mode === 'insights') {
       const prompt = hasAnyData
         ? `User's data:\n${JSON.stringify(context)}\n\nReturn JSON: { "insights": [ { "kind": "pattern"|"nudge"|"win", "title": string, "body": string } ] }. Return 2-4 insights, each grounded in a specific fact from the data.`
-        : `The user has no goals, habits, or journal entries yet. Return JSON: { "insights": [ { "kind": "nudge", "title": string, "body": string } ] } with exactly one warm, encouraging insight suggesting they add their first goal or habit.`;
+        : `The user has no goals or habits yet. Return JSON: { "insights": [ { "kind": "nudge", "title": string, "body": string } ] } with exactly one warm, encouraging insight suggesting they add their first goal or habit.`;
       const text = await callModel(GEMINI_API_KEY, system, prompt);
       const parsed = extractJson(text) as { insights: unknown };
 
@@ -260,7 +263,17 @@ Deno.serve(async (req: Request) => {
     }
 
     if (mode === 'nudge-sentiment') {
-      const recent = context.journal_last_30_days.slice(0, 5) as { date: string; sentiment: number }[];
+      // Mood scores are read here only to decide whether to nudge; they never
+      // reach the model, so the copy is fixed rather than generated.
+      const { data: journal } = await adminClient
+        .from('journal_entries')
+        .select('date,sentiment')
+        .eq('user_id', user.id)
+        .gte('date', since)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(5);
+      const recent = (journal ?? []) as { date: string; sentiment: number }[];
 
       // Require at least 3 entries getting steadily lower over time, with the
       // latest clearly low. `recent` is newest-first, so each older entry must
@@ -273,17 +286,17 @@ Deno.serve(async (req: Request) => {
         return json({ shouldNudge: false });
       }
 
-      const prompt = `The user's last 3 journal entries have trended toward lower sentiment (most recent first): ${JSON.stringify(recent.slice(0, 3))}. Return JSON: { "title": string (max 40 chars), "body": string (max 100 chars) } — a gentle, non-clinical check-in nudge. Never diagnose or use clinical language; just invite them to check in.`;
-      const text = await callModel(GEMINI_API_KEY, system, prompt);
-      const parsed = extractJson(text) as { title: string; body: string };
-
-      return json({ shouldNudge: true, ...parsed });
+      return json({
+        shouldNudge: true,
+        title: 'A gentle check-in',
+        body: 'The last few days seem heavier. Take a quiet minute for yourself today.',
+      });
     }
 
     // mode === 'weekly'
     const prompt = hasAnyData
       ? `User's data (last 30 days):\n${JSON.stringify(context)}\n\nReturn JSON: { "period": string (e.g. "Last 7 days"), "stats": [ { "n": string, "l": string } ] (3 short stat tiles), "quote": string (one reflective sentence in second person, present tense), "wins": [ { "t": string, "s": sphere } ], "challenges": [ { "t": string, "s": sphere } ], "next_step": { "title": string, "when": string } }. sphere must be one of finance, health, career, relationships. Base every item strictly on the data; if there isn't enough for a category, return an empty array for it.`
-      : `The user has no data yet. Return JSON: { "period": "This week", "stats": [], "quote": "Your week in review will appear here once you start logging goals, habits, or journal entries.", "wins": [], "challenges": [], "next_step": { "title": "Add your first goal or habit", "when": "Today" } }.`;
+      : `The user has no data yet. Return JSON: { "period": "This week", "stats": [], "quote": "Your week in review will appear here once you start logging goals or habits.", "wins": [], "challenges": [], "next_step": { "title": "Add your first goal or habit", "when": "Today" } }.`;
     const text = await callModel(GEMINI_API_KEY, system, prompt);
     const parsed = extractJson(text);
 

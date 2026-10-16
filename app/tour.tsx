@@ -63,7 +63,7 @@ const SLIDES: Slide[] = [
     glyphColor: SPHERE_COLORS.relationships.accent,
     label: 'Coach',
     title: 'Your coach\nwatches patterns.',
-    body: 'The AI coach reads your journal sentiment, goal progress, and habit streaks — then tells you what to do next and why.',
+    body: 'The AI coach reads your goal progress and habit streaks — then tells you what to do next and why. Your journal stays private.',
     hint: 'The more you use the app, the sharper the insights get.',
   },
   {
