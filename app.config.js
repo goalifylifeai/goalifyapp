@@ -43,6 +43,17 @@ module.exports = {
       edgeToEdgeEnabled: true,
       package: 'com.goalifylife.app',
       permissions: ['android.permission.READ_CALENDAR', 'android.permission.WRITE_CALENDAR'],
+      // Added by libraries (expo-av, expo-file-system, expo-secure-store, RN) but
+      // unused by the app. Play's Data safety review flags e.g. RECORD_AUDIO when
+      // the form declares no audio collection, so strip them from the manifest.
+      blockedPermissions: [
+        'android.permission.RECORD_AUDIO',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.USE_BIOMETRIC',
+        'android.permission.USE_FINGERPRINT',
+      ],
     },
     web: {
       bundler: 'metro',
