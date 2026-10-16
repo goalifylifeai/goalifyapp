@@ -48,6 +48,13 @@
       margin-bottom: 12px;
     }
 
+    h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-top: 24px;
+      margin-bottom: 8px;
+    }
+
     p { margin-bottom: 14px; }
 
     ul {
@@ -58,6 +65,26 @@
     li { margin-bottom: 6px; }
 
     a { color: #1F1B17; }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin-bottom: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      padding: 10px 12px 10px 0;
+      border-bottom: 1px solid #D9D3C9;
+    }
+
+    th { font-weight: 600; }
 
     hr {
       border: none;
@@ -77,149 +104,243 @@
     <div class="wordmark">Goalify</div>
 
     <h1>Privacy Policy</h1>
-    <p class="meta">Effective date: May 11, 2025 &nbsp;·&nbsp; Last updated: May 11, 2025</p>
+    <p class="meta">Effective date: October 16, 2026 &nbsp;·&nbsp; Last updated: October 16, 2026</p>
 
     <p>
-      Goalify ("we", "our", or "us") is a personal growth app that helps you set goals, build habits,
-      and reflect on your life. This Privacy Policy explains what information we collect, how we use it,
-      and your rights regarding your data.
+      Goalify is a personal growth app that helps you set goals, build habits and reflect on your life.
+      This policy explains what information Goalify collects, why, who it is shared with, and the
+      choices and rights you have. It applies to the Goalify apps for Android and iOS and to the web
+      version at goalify.life.
     </p>
+
+    <h2>1. Who is responsible</h2>
     <p>
-      By using Goalify, you agree to the practices described in this policy. If you do not agree,
-      please do not use the app.
+      Goalify is operated by Pulkit Chaturvedi, Bartningallee 24, 10557 Berlin, Germany
+      ("we", "us"). We are the controller of your personal data. For anything privacy-related,
+      email <a href="mailto:privacy@goalify.life">privacy@goalify.life</a>.
     </p>
 
-    <h2>1. Information We Collect</h2>
+    <h2>2. Information we collect</h2>
 
-    <p><strong>Account information</strong></p>
+    <h3>Account information</h3>
     <ul>
-      <li>Email address — used to create and identify your account.</li>
-      <li>Password — stored securely as a hash; we never see your plain-text password.</li>
-      <li>If you sign in with Google or Apple, we receive only your email address and a unique account identifier from that provider. We do not receive your social media profile, contacts, or any other data from those providers.</li>
+      <li><strong>Email address and password.</strong> Your password is stored only as a secure hash; we never see it in plain text.</li>
+      <li><strong>Google or Apple sign-in.</strong> If you sign in this way, we receive your email address and an account identifier from that provider, and nothing else from your Google or Apple account.</li>
     </ul>
 
-    <p><strong>Profile information (provided by you during setup)</strong></p>
+    <h3>Profile information you give us</h3>
     <ul>
-      <li>Display name — the name used in your daily check-ins and coaching messages.</li>
-      <li>Pronouns (optional) — used to personalise coaching language. You can skip this entirely.</li>
-      <li>Life focus areas — which of the four spheres (finance, health, career, relationships) matter most to you.</li>
-      <li>Coaching tone preference — warm, direct, or playful.</li>
+      <li>Your display name, the life areas you focus on, your preferred coaching tone and your time zone.</li>
+      <li>Your pronouns, if you choose to give them. They are optional and only used to personalise coaching language and vision images.</li>
     </ul>
 
-    <p><strong>Content you create</strong></p>
+    <h3>Content you create</h3>
     <ul>
-      <li>Goals and subtasks</li>
-      <li>Daily habits and streak data</li>
-      <li>Journal entries</li>
-      <li>Daily intentions and ritual check-ins</li>
-      <li>Messages sent to the AI Coach</li>
-      <li>Future self letter</li>
-    </ul>
-    <p>All of this content is private to you and is never shared with other users or third parties.</p>
-
-    <p><strong>Calendar data</strong></p>
-    <p>
-      If you enable the "Add to Calendar" feature for a habit, Goalify requests permission to write a
-      recurring event to your device's calendar. We only create events you explicitly ask for. We do
-      not read your existing calendar events.
-    </p>
-
-    <p><strong>Notification preferences</strong></p>
-    <p>
-      If you enable push notifications, we store your preferred notification times (morning, lunch,
-      evening) on your device. Notifications are scheduled locally — we do not use a third-party
-      push service to deliver reminder notifications.
-    </p>
-
-    <p><strong>Technical data</strong></p>
-    <p>
-      We may collect anonymous crash reports and basic usage diagnostics (e.g. app version, device
-      operating system) to help us fix bugs. This data contains no personally identifiable information.
-    </p>
-
-    <h2>2. How We Use Your Information</h2>
-    <ul>
-      <li>To create and maintain your account.</li>
-      <li>To provide the features of the app — goals, habits, coaching, journal, rituals.</li>
-      <li>To personalise the AI Coach's tone and language to your preferences.</li>
-      <li>To send you opt-in local notifications for morning, lunch, and evening check-ins.</li>
-      <li>To diagnose and fix technical issues.</li>
-    </ul>
-    <p>We do not use your data to show you advertisements. We do not sell your data. Ever.</p>
-
-    <h2>3. Data Storage and Security</h2>
-    <p>
-      Your account data and app content are stored on servers provided by
-      <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a>,
-      a third-party backend service. All data is transmitted over HTTPS (TLS encryption).
-      Supabase's servers are located in the European Union (Frankfurt, Germany) by default.
-    </p>
-    <p>
-      Supabase processes data on our behalf and is contractually bound not to use your data for
-      any purpose other than providing the database service. You can review Supabase's own
-      privacy policy at <a href="https://supabase.com/privacy" target="_blank" rel="noopener">supabase.com/privacy</a>.
-    </p>
-
-    <h2>4. Third-Party Sign-In</h2>
-    <p>
-      You may sign in using Google or Apple. In these cases, the respective provider authenticates
-      you and shares only your email address and a unique identifier with us. We do not receive
-      any other data from your Google or Apple account. Please review Google's and Apple's own
-      privacy policies for information on how they handle your data during sign-in.
-    </p>
-
-    <h2>5. Data Retention</h2>
-    <p>
-      We retain your data for as long as your account is active. If you delete your account,
-      all associated data — goals, habits, journal entries, coaching history, profile, and future
-      letter — is permanently deleted from our servers within 30 days.
-    </p>
-
-    <h2>6. Your Rights</h2>
-    <p>Depending on where you live, you may have the right to:</p>
-    <ul>
-      <li>Access the personal data we hold about you.</li>
-      <li>Correct inaccurate data.</li>
-      <li>Request deletion of your account and all associated data.</li>
-      <li>Export a copy of your data.</li>
-      <li>Object to or restrict processing of your data.</li>
+      <li>Goals and their steps, habits, completions, streaks, rest days and XP.</li>
+      <li>Daily intentions and morning and evening check-ins.</li>
+      <li>Journal entries. The app estimates a simple mood score for each entry on your device, and stores it with the entry.</li>
+      <li>Messages you send to the AI Coach and the coach's replies and insights.</li>
+      <li>Your letter to your future self.</li>
+      <li>Vision images generated for your goals.</li>
     </ul>
     <p>
-      To exercise any of these rights, email us at
-      <a href="mailto:privacy@goalify.life">privacy@goalify.life</a>.
-      We will respond within 30 days.
+      Your journal is private. Journal entries and their mood scores are stored only so you can see
+      them in the app, for example your mood trend. They are never sent to our AI provider, never
+      shared with anyone, and never used for advertising. You can delete any entry at any time.
     </p>
 
-    <h2>7. Children's Privacy</h2>
+    <h3>Circles</h3>
     <p>
-      Goalify is not directed at children under 13 (or under 16 in the European Union). We do not
-      knowingly collect personal information from children. If you believe a child has provided us
-      with personal data, contact us at <a href="mailto:privacy@goalify.life">privacy@goalify.life</a>
-      and we will delete it promptly.
+      If you create or join a Circle, its other members can see the display name you had when you
+      joined, whether you completed today's main action, and your current streak. They never see your
+      goals, habits, journal or coach conversations. We store the Circle's name, its invite code and
+      who its members are.
     </p>
 
-    <h2>8. Changes to This Policy</h2>
+    <h3>Subscriptions</h3>
     <p>
-      We may update this Privacy Policy from time to time. When we do, we will update the
-      "Last updated" date at the top of this page. If changes are significant, we will notify
-      you in the app. Continued use of Goalify after changes take effect constitutes acceptance
-      of the updated policy.
+      If you subscribe to Goalify Beyond, the payment is handled by Google Play or the Apple App Store.
+      We never receive your card or bank details. We receive and store your subscription status
+      (for example, which plan you are on and when it renews) so we can unlock the features you paid for.
     </p>
 
-    <h2>9. Contact Us</h2>
-    <p>
-      If you have questions about this Privacy Policy, please contact us at:
-    </p>
+    <h3>Device features</h3>
     <ul>
-      <li>Email: <a href="mailto:privacy@goalify.life">privacy@goalify.life</a></li>
-      <li>Website: <a href="https://goalify.life">goalify.life</a></li>
+      <li><strong>Calendar.</strong> If you add a habit to your calendar, the app asks for calendar permission, lists your calendars on your device so you can pick one, and creates a recurring event. We do not read your existing events. We store only the ID of the event we created, so we can update or remove it.</li>
+      <li><strong>Notifications.</strong> Reminders are scheduled on your device. If you set a reminder time for a habit, that time is saved with the habit.</li>
     </ul>
 
-    <hr />
-
-    <p class="footer">
-      © 2025 Goalify. All rights reserved.
+    <h3>Product analytics (only if you agree)</h3>
+    <p>
+      The app asks whether you want to share usage analytics. Nothing is sent unless you say yes,
+      and you can change your mind at any time in Profile. If you agree, we collect:
     </p>
+    <ul>
+      <li>events about how you use the app, such as screens opened, features used and actions completed;</li>
+      <li>basic technical details: app version, operating system and device model;</li>
+      <li>a random identifier for your installation, linked to your Goalify account ID once you sign in;</li>
+      <li>subscription events (such as starting or renewing a subscription).</li>
+    </ul>
+    <p>
+      We never send the text of your goals, habits, journal entries or coach messages to analytics,
+      and location lookup is turned off.
+    </p>
+
+    <h3>Website</h3>
+    <p>
+      Our website and the web version of Goalify use Vercel Web Analytics to count page views.
+      It does not use cookies and does not identify you personally.
+    </p>
+
+    <h2>3. How we use your information, and our legal bases</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Purpose</th><th>Legal basis (GDPR)</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Creating your account, signing you in, storing and syncing your content, Circles, reminders and calendar events</td>
+            <td>Performing our contract with you (Art. 6(1)(b))</td>
+          </tr>
+          <tr>
+            <td>Generating AI Coach replies, insights and vision images when you use those features</td>
+            <td>Performing our contract with you (Art. 6(1)(b))</td>
+          </tr>
+          <tr>
+            <td>Managing your subscription</td>
+            <td>Performing our contract with you (Art. 6(1)(b))</td>
+          </tr>
+          <tr>
+            <td>Product analytics in the app</td>
+            <td>Your consent (Art. 6(1)(a)), which you can withdraw at any time</td>
+          </tr>
+          <tr>
+            <td>Cookie-free website analytics, keeping the service secure and preventing abuse</td>
+            <td>Our legitimate interests in running and protecting the service (Art. 6(1)(f))</td>
+          </tr>
+          <tr>
+            <td>Meeting legal obligations, such as keeping records of transactions</td>
+            <td>Legal obligation (Art. 6(1)(c))</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>We do not sell your data, we do not show ads, and we do not use your data for advertising.</p>
+
+    <h2>4. AI features</h2>
+    <ul>
+      <li>
+        <strong>AI Coach.</strong> When you open the coach or send it a message, we send your message
+        together with your goals, habits and recent completions to Google's Gemini API to generate a
+        reply. <strong>Your journal entries and mood scores are never sent.</strong> We use Google's paid
+        API service, under whose terms Google does not use this content to train its models.
+      </li>
+      <li>
+        <strong>Vision images.</strong> Images are generated by fal.ai from a general scene description
+        based on the goal's life area. No goal titles, journal text or other text you wrote is sent.
+        If you turned on gender-aware coaching, the description may include a figure matching your pronouns.
+      </li>
+    </ul>
+    <p>
+      If the mood scores of your recent journal entries trend lower, the app may show you a gentle
+      check-in reminder. Our servers decide this from the scores alone, without AI, and the
+      reminder text is the same for everyone.
+    </p>
+    <p>AI output can be wrong. It is not medical, financial or professional advice.</p>
+
+    <h2>5. Who we share data with</h2>
+    <p>
+      We share data only with service providers who process it on our behalf, under contracts
+      that limit them to providing their service to us:
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Provider</th><th>What they do</th><th>Location</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Supabase</td><td>Database, sign-in and file storage for your account and content</td><td>EU</td></tr>
+          <tr><td>Google (Gemini API)</td><td>Generates AI Coach replies and insights from your goals, habits and coach messages (never your journal)</td><td>May process outside the EU</td></tr>
+          <tr><td>fal.ai</td><td>Generates vision images from general scene descriptions</td><td>USA</td></tr>
+          <tr><td>RevenueCat</td><td>Tracks subscription status</td><td>USA</td></tr>
+          <tr><td>Google Play / Apple App Store</td><td>Process subscription payments under their own privacy policies</td><td>Global</td></tr>
+          <tr><td>PostHog</td><td>Product analytics, only if you agree</td><td>EU</td></tr>
+          <tr><td>Vercel</td><td>Hosts the website and web app; cookie-free page-view counts</td><td>Global</td></tr>
+          <tr><td>Google / Apple sign-in</td><td>Authenticate you if you choose to sign in with them</td><td>Global</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Other Circle members see the limited information described above because you chose to join that
+      Circle. We may also disclose information if the law requires it.
+    </p>
+
+    <h2>6. International transfers</h2>
+    <p>
+      Some providers above process data outside the European Economic Area. Where they do, we rely on
+      safeguards recognised by EU law, such as the EU–US Data Privacy Framework or the European
+      Commission's Standard Contractual Clauses.
+    </p>
+
+    <h2>7. How long we keep data</h2>
+    <ul>
+      <li>We keep your account and content for as long as you have an account.</li>
+      <li>When you delete your account, your account, content and analytics data are deleted. Copies in backups are overwritten within 30 days.</li>
+      <li>Records we must keep by law, such as for purchases, are kept for the period the law requires.</li>
+      <li>If you withdraw analytics consent, no further analytics data is collected.</li>
+    </ul>
+
+    <h2>8. Your rights and choices</h2>
+    <p>Depending on where you live, you have the right to:</p>
+    <ul>
+      <li>access the personal data we hold about you, and get a copy of it;</li>
+      <li>correct inaccurate data;</li>
+      <li>delete your data;</li>
+      <li>restrict or object to some processing;</li>
+      <li>receive your data in a portable format;</li>
+      <li>withdraw consent at any time, without affecting processing that happened before.</li>
+    </ul>
+    <p>
+      You can edit or delete your content and export a copy of your data from the app.
+      To delete your account, go to <strong>Profile → Delete account</strong>, or follow the steps at
+      <a href="/delete-account">goalify.life/delete-account</a>. For any other request, email
+      <a href="mailto:privacy@goalify.life">privacy@goalify.life</a>. We reply within 30 days.
+    </p>
+    <p>
+      You also have the right to complain to a data protection authority, such as the one where you
+      live or work. Ours is the Berlin Commissioner for Data Protection and Freedom of Information
+      (Berliner Beauftragte für Datenschutz und Informationsfreiheit).
+    </p>
+
+    <h2>9. Security</h2>
+    <p>
+      All data is sent over encrypted connections (HTTPS/TLS), and your data is encrypted at rest by
+      our database provider. Each account can only access its own data. No system is perfectly secure,
+      but we work to protect your information and limit who can access it.
+    </p>
+
+    <h2>10. Age requirement</h2>
+    <p>
+      Goalify is intended for adults aged 18 and over. We do not knowingly collect data from children.
+      If you believe a child has given us personal data, email
+      <a href="mailto:privacy@goalify.life">privacy@goalify.life</a> and we will delete it.
+    </p>
+
+    <h2>11. Changes to this policy</h2>
+    <p>
+      If we change this policy, we will update the date at the top. If the changes are significant,
+      we will tell you in the app before they take effect.
+    </p>
+
+    <h2>12. Contact</h2>
+    <p>
+      Pulkit Chaturvedi, Bartningallee 24, 10557 Berlin, Germany<br />
+      Email: <a href="mailto:privacy@goalify.life">privacy@goalify.life</a><br />
+      Website: <a href="https://www.goalify.life">goalify.life</a>
+    </p>
+
+    <p class="footer">© 2026 Goalify. All rights reserved. &nbsp;·&nbsp; <a href="/impressum">Impressum</a></p>
   </div>
 </body>
 </html>
