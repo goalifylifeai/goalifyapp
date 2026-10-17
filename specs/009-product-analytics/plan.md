@@ -110,6 +110,8 @@ No `is_first` flag: before the cache hydrates the store looks empty, so it would
 | | `circle_invite_shared` | – | `app/circles/[id].tsx` |
 | Notifications | `notification_permission_result` | `granted` | `lib/notifications.ts` |
 | | `notification_opened` | `kind: morning\|lunch\|evening\|sentiment\|streak_risk\|habit_reminder\|goal_due\|trial_ending\|other` | `app/_layout.tsx` NotificationListener |
+| Gamification | `level_reached` | `level` | `store/xp.tsx` dismissMoment (once per level, server-confirmed XP; never for backfilled levels) |
+| | `achievement_unlocked` | `achievement` (catalogue key, e.g. `first:habit_done`, `streak:30`, `balanced_week`) | same, once per achievement when its moment is dismissed |
 | Consent | `analytics_consent_changed` | `granted: true` (only sendable when granting) | consent screen / profile |
 | Server | `subscription_started` / `subscription_renewed` / `subscription_cancelled` / `subscription_uncancelled` / `subscription_expired` / `billing_issue` / `subscription_product_changed` | `period_type`, `store`, `product_id`, `is_trial_conversion`, `price_usd` | `supabase/functions/revenuecat-webhook` |
 
